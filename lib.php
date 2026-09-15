@@ -17,6 +17,7 @@
 function report_finalreport_extend_navigation_course($navigation, $course, $context) {
     if (has_capability('report/finalreport:view', $context)) {
         $url = new moodle/url('/report/finalreport/index.php', ['id' => $course->id]);
-        
+        $navigation->add(get_string('pluginname', 'report_relatoriofinal'), $url,
+            navigation_node::TYPE_SETTING, null, null, new pix_icon('i/report', ''));
     }
-}
+};
