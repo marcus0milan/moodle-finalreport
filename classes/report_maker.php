@@ -33,10 +33,11 @@ class report_maker {
      * keeps completion, grades and engagement rates comparable and excludes staff.
      *
      * @param \stdClass $course Moodle course record.
+     * @param string[]|null $types Module types selected in the filter, or null for all types.
      * @return array Report data ready for either HTML or PDF rendering.
      */
-    public static function build(\stdClass $course): array {
-        global $CFG, $DB;
+    public static function build(\stdClass $course, ?array $types = null): array {
+        global $CFG;
 
         require_once($CFG->libdir . '/completionlib.php');
         require_once($CFG->libdir . '/gradelib.php');
@@ -50,7 +51,14 @@ class report_maker {
             true
         );
 
-        $activities = self::get_activities($course);
+        $allactivities = self::get_activities($course);
+        $activitytypes = self::get_activity_types($allactivities);
+        $selectedtypes = self::normalise_activity_types($types, $activitytypes);
+        $activities = $types === null
+            ? $allactivities
+            : array_filter($allactivities, static function(array $activity) use ($selectedtypes): bool {
+                return in_array($activity['module'], $selectedtypes, true);
+            });
         $trackedparticipants = $completioninfo->get_num_tracked_users();
         $completion = self::get_course_completion(
             $course,
@@ -81,7 +89,49 @@ class report_maker {
             'grade' => self::get_grades($course, $enrolledsql, $enrolledparams),
             'engagement' => $engagement['summary'],
             'activities' => self::merge_activity_statistics($activities, $engagement['activities']),
+            'activitytypes' => $activitytypes,
+            'filteractive' => $types !== null,
+            'selectedtypes' => $selectedtypes,
         ];
+    }
+
+    /**
+     * Returns the module types available in the course, with their translated labels.
+     *
+     * @param array<int, array> $activities Activities indexed by course-module id.
+     * @return array<string, string> Module type names keyed by their internal names.
+     */
+    private static function get_activity_types(array $activities): array {
+        $types = [];
+        foreach ($activities as $activity) {
+            $types[$activity['module']] = $activity['modulelabel'];
+        }
+        natcasesort($types);
+
+        return $types;
+    }
+
+    /**
+     * Removes values that are not module types available in this course.
+     *
+     * @param string[]|null $types Submitted module types.
+     * @param array<string, string> $availabletypes Module types available in the course.
+     * @return string[] Valid module types.
+     */
+    private static function normalise_activity_types(?array $types, array $availabletypes): array {
+        if ($types === null) {
+            return array_keys($availabletypes);
+        }
+
+        $selectedtypes = [];
+        foreach ($types as $type) {
+            $type = clean_param((string)$type, PARAM_ALPHANUMEXT);
+            if ($type !== '' && array_key_exists($type, $availabletypes)) {
+                $selectedtypes[$type] = $type;
+            }
+        }
+
+        return array_values($selectedtypes);
     }
 
     /**
@@ -233,7 +283,11 @@ class report_maker {
             ],
             'activities' => [],
         ];
-        if (!$activities || !$DB->get_manager()->table_exists(new \xmldb_table('logstore_standard_log'))) {
+        if (!$DB->get_manager()->table_exists(new \xmldb_table('logstore_standard_log'))) {
+            return $empty;
+        }
+        if (!$activities) {
+            $empty['summary']['available'] = true;
             return $empty;
         }
 

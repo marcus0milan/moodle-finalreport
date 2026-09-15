@@ -56,4 +56,8 @@ $string['completiondisabled'] = 'Completion not configured';
 $string['pdfsubtitle'] = 'Academic and engagement indicators';
 $string['pdfnote'] = 'Access data includes events currently retained in Moodle standard log storage.';
 $string['activitycompletion'] = 'Activity completion';
+$string['filteractivitytypes'] = 'Activity and resource types';
+$string['filteractivitytypeshelp'] = 'Select one or more types to include in the activity analysis and interaction indicators.';
+$string['applyfilters'] = 'Apply filters';
+$string['clearfilters'] = 'Clear filters';
 

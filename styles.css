@@ -1,7 +1,7 @@
 .report-finalreport {
-    --finalreport-border: #d9e1ea;
-    --finalreport-muted: #5f6b7a;
-    --finalreport-primary: #0f6cbf;
+    --finalreport-border: var(--bs-border-color, var(--gray-400, currentColor));
+    --finalreport-muted: var(--bs-secondary-color, var(--secondary, currentColor));
+    --finalreport-primary: var(--bs-primary, var(--primary, currentColor));
 }
 
 .report-finalreport__header {
@@ -32,6 +32,60 @@
     margin-bottom: 1rem;
 }
 
+.report-finalreport__filter {
+    margin: 1.25rem 0;
+}
+
+.report-finalreport__filter-fieldset {
+    background: var(--bs-body-bg, var(--body-bg, transparent));
+    border: 1px solid var(--finalreport-border);
+    border-radius: .5rem;
+    margin: 0;
+    min-width: 0;
+    padding: 1rem 1.25rem 1.1rem;
+}
+
+.report-finalreport__filter-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0;
+    padding: 0 .25rem;
+    width: auto;
+}
+
+.report-finalreport__filter-help {
+    color: var(--finalreport-muted);
+    font-size: .875rem;
+    margin-bottom: .75rem;
+}
+
+.report-finalreport__filter-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem 1.25rem;
+}
+
+.report-finalreport__filter-option {
+    align-items: center;
+    display: inline-flex;
+    gap: .4rem;
+}
+
+.report-finalreport__filter-checkbox {
+    margin: 0;
+}
+
+.report-finalreport__filter-option label {
+    margin: 0;
+}
+
+.report-finalreport__filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: 1rem;
+}
+
 .report-finalreport__kpis {
     display: grid;
     gap: 1rem;
@@ -41,7 +95,7 @@
 
 .report-finalreport__kpi,
 .report-finalreport__chart {
-    background: #fff;
+    background: var(--bs-body-bg, var(--body-bg, transparent));
     border: 1px solid var(--finalreport-border);
     border-radius: .5rem;
     box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
@@ -77,12 +131,88 @@
 }
 
 .report-finalreport__chart {
-    min-height: 20rem;
+    box-sizing: border-box;
+    min-width: 0;
     padding: 1rem;
 }
 
 .report-finalreport__chart .chart-area {
-    min-height: 17rem;
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+}
+
+.report-finalreport__chart .chart-image {
+    box-sizing: border-box;
+    height: 20rem;
+    max-width: 100%;
+    min-width: 0;
+    position: relative;
+    width: 100%;
+}
+
+.report-finalreport__chart .chart-image canvas {
+    box-sizing: border-box;
+    display: block !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+    width: 100% !important;
+}
+
+.report-finalreport__chart .chart-table {
+    margin-top: .5rem;
+}
+
+.report-finalreport__chart--wide {
+    grid-column: 1 / -1;
+}
+
+.report-finalreport__chart-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 1rem;
+    text-align: center;
+}
+
+.report-finalreport__interaction-chart {
+    display: grid;
+    gap: .75rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.report-finalreport__interaction-row {
+    align-items: center;
+    display: grid;
+    gap: .75rem;
+    grid-template-columns: minmax(11rem, 2fr) minmax(8rem, 5fr) auto;
+}
+
+.report-finalreport__interaction-label {
+    overflow-wrap: anywhere;
+}
+
+.report-finalreport__interaction-track {
+    background: var(--finalreport-border);
+    border-radius: 999px;
+    height: .8rem;
+    overflow: hidden;
+}
+
+.report-finalreport__interaction-bar {
+    background: var(--finalreport-primary);
+    border-radius: inherit;
+    height: 100%;
+    max-width: 100%;
+    min-width: 0;
+    width: var(--finalreport-interaction-width);
+}
+
+.report-finalreport__interaction-value {
+    font-variant-numeric: tabular-nums;
+    text-align: end;
 }
 
 .report-finalreport__section-title {
@@ -111,5 +241,17 @@
     .report-finalreport__kpis,
     .report-finalreport__charts {
         grid-template-columns: 1fr;
+    }
+
+    .report-finalreport__chart .chart-image {
+        height: 22rem;
+    }
+
+    .report-finalreport__interaction-row {
+        grid-template-columns: 1fr auto;
+    }
+
+    .report-finalreport__interaction-label {
+        grid-column: 1 / -1;
     }
 }

@@ -56,4 +56,8 @@ $string['completiondisabled'] = 'Conclusão não configurada';
 $string['pdfsubtitle'] = 'Indicadores acadêmicos e de engajamento';
 $string['pdfnote'] = 'Os dados de acesso consideram os eventos atualmente retidos no armazenamento padrão de logs do Moodle.';
 $string['activitycompletion'] = 'Conclusão da atividade';
+$string['filteractivitytypes'] = 'Tipos de atividades e recursos';
+$string['filteractivitytypeshelp'] = 'Selecione um ou mais tipos para incluir na análise de atividades e nos indicadores de interações.';
+$string['applyfilters'] = 'Aplicar filtros';
+$string['clearfilters'] = 'Limpar filtros';
 

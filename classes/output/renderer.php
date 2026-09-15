@@ -34,10 +34,15 @@ class renderer extends \plugin_renderer_base {
      */
     public function dashboard(array $data): string {
         $coursecontext = \context_course::instance($data['course']->id);
-        $downloadurl = new \moodle_url('/report/finalreport/index.php', [
+        $downloadparams = [
             'id' => $data['course']->id,
             'download' => 1,
-        ]);
+        ];
+        if ($data['filteractive']) {
+            $downloadparams['filter'] = 1;
+            $downloadparams['types'] = implode(',', $data['selectedtypes']);
+        }
+        $downloadurl = new \moodle_url('/report/finalreport/index.php', $downloadparams);
         $coursefullname = format_string($data['course']->fullname, true, ['context' => $coursecontext]);
 
         $html = \html_writer::start_div('report-finalreport');
@@ -60,6 +65,7 @@ class renderer extends \plugin_renderer_base {
             get_string('generatedat', 'report_finalreport', userdate($data['generatedat'])),
             'report-finalreport__generated'
         );
+        $html .= $this->activity_type_filter($data);
 
         if (!$data['completion']['configured']) {
             $html .= \html_writer::div(
@@ -80,6 +86,79 @@ class renderer extends \plugin_renderer_base {
         $html .= $this->charts($data);
         $html .= $this->activity_table($data['activities']);
         $html .= \html_writer::end_div();
+
+        return $html;
+    }
+
+    /**
+     * Renders the filter for the activity and resource types found in the course.
+     *
+     * @param array $data Report data.
+     * @return string Filter form HTML.
+     */
+    private function activity_type_filter(array $data): string {
+        if (!$data['activitytypes']) {
+            return '';
+        }
+
+        $formurl = new \moodle_url('/report/finalreport/index.php', ['id' => $data['course']->id]);
+        $formaction = new \moodle_url('/report/finalreport/index.php');
+        $html = \html_writer::start_tag('form', [
+            'action' => $formaction->out(false),
+            'class' => 'report-finalreport__filter',
+            'method' => 'get',
+        ]);
+        $html .= \html_writer::empty_tag('input', [
+            'name' => 'id',
+            'type' => 'hidden',
+            'value' => $data['course']->id,
+        ]);
+        $html .= \html_writer::start_tag('fieldset', ['class' => 'report-finalreport__filter-fieldset']);
+        $html .= \html_writer::tag(
+            'legend',
+            get_string('filteractivitytypes', 'report_finalreport'),
+            ['class' => 'report-finalreport__filter-title']
+        );
+        $html .= \html_writer::div(
+            get_string('filteractivitytypeshelp', 'report_finalreport'),
+            'report-finalreport__filter-help'
+        );
+        $html .= \html_writer::start_div('report-finalreport__filter-options');
+        foreach ($data['activitytypes'] as $type => $label) {
+            $id = 'report-finalreport-type-' . $type;
+            $attributes = [
+                'class' => 'report-finalreport__filter-checkbox',
+                'id' => $id,
+                'name' => 'type[]',
+                'type' => 'checkbox',
+                'value' => $type,
+            ];
+            if (!$data['filteractive'] || in_array($type, $data['selectedtypes'], true)) {
+                $attributes['checked'] = 'checked';
+            }
+            $html .= \html_writer::start_div('report-finalreport__filter-option');
+            $html .= \html_writer::empty_tag('input', $attributes);
+            $html .= \html_writer::tag('label', s($label), ['for' => $id]);
+            $html .= \html_writer::end_div();
+        }
+        $html .= \html_writer::end_div();
+        $html .= \html_writer::start_div('report-finalreport__filter-actions');
+        $html .= \html_writer::tag('button', get_string('applyfilters', 'report_finalreport'), [
+            'class' => 'btn btn-primary',
+            'name' => 'filter',
+            'type' => 'submit',
+            'value' => 1,
+        ]);
+        if ($data['filteractive']) {
+            $html .= \html_writer::link(
+                $formurl,
+                get_string('clearfilters', 'report_finalreport'),
+                ['class' => 'btn btn-secondary']
+            );
+        }
+        $html .= \html_writer::end_div();
+        $html .= \html_writer::end_tag('fieldset');
+        $html .= \html_writer::end_tag('form');
 
         return $html;
     }
@@ -146,20 +225,24 @@ class renderer extends \plugin_renderer_base {
         if ($data['completion']['configured']) {
             $chart = new \core\chart_bar();
             $chart->set_title(get_string('completionoverview', 'report_finalreport'));
+            $chart->set_legend_options(['display' => false]);
             $chart->set_labels([
                 get_string('completed', 'report_finalreport'),
                 get_string('notcompleted', 'report_finalreport'),
             ]);
-            $chart->add_series(new \core\chart_series('', [
+            $series = new \core\chart_series('', [
                 $data['completion']['completed'],
                 max(0, $data['participants'] - $data['completion']['completed']),
-            ]));
+            ]);
+            $this->apply_theme_colour($series);
+            $chart->add_series($series);
             $charts[] = $this->chart_container($this->output->render($chart));
         }
 
         if ($data['grade']['available']) {
             $chart = new \core\chart_bar();
             $chart->set_title(get_string('gradedistribution', 'report_finalreport'));
+            $chart->set_legend_options(['display' => false]);
             $chart->set_labels([
                 get_string('range0_59', 'report_finalreport'),
                 get_string('range60_69', 'report_finalreport'),
@@ -167,10 +250,12 @@ class renderer extends \plugin_renderer_base {
                 get_string('range80_89', 'report_finalreport'),
                 get_string('range90_100', 'report_finalreport'),
             ]);
-            $chart->add_series(new \core\chart_series(
+            $series = new \core\chart_series(
                 get_string('gradedparticipants', 'report_finalreport'),
                 $data['grade']['distribution']
-            ));
+            );
+            $this->apply_theme_colour($series);
+            $chart->add_series($series);
             $charts[] = $this->chart_container($this->output->render($chart));
         }
 
@@ -180,18 +265,7 @@ class renderer extends \plugin_renderer_base {
                 return $right['interactions'] <=> $left['interactions'];
             });
             $activities = array_slice($activities, 0, 10);
-            $labels = [];
-            $values = [];
-            foreach ($activities as $activity) {
-                $labels[] = shorten_text(strip_tags(format_string($activity['name'])), 28);
-                $values[] = $activity['interactions'];
-            }
-            $chart = new \core\chart_bar();
-            $chart->set_horizontal(true);
-            $chart->set_title(get_string('activityinteractions', 'report_finalreport'));
-            $chart->set_labels($labels);
-            $chart->add_series(new \core\chart_series(get_string('interactions', 'report_finalreport'), $values));
-            $charts[] = $this->chart_container($this->output->render($chart));
+            $charts[] = $this->chart_container($this->interaction_chart($activities), true);
         }
 
         if (!$charts) {
@@ -201,13 +275,114 @@ class renderer extends \plugin_renderer_base {
     }
 
     /**
+     * Renders an accessible horizontal bar chart for activity interactions.
+     *
+     * CSS draws the bars with the active theme's primary colour. This avoids a
+     * fixed canvas palette and keeps full activity names visible at every width.
+     *
+     * @param array<int, array> $activities Activity rows, ordered by interactions.
+     * @return string Chart HTML.
+     */
+    private function interaction_chart(array $activities): string {
+        $maximum = max(array_column($activities, 'interactions'));
+        $maximum = max(1, (int)$maximum);
+
+        $html = \html_writer::tag(
+            'h3',
+            get_string('activityinteractions', 'report_finalreport'),
+            ['class' => 'report-finalreport__chart-title']
+        );
+        $html .= \html_writer::start_tag('ol', ['class' => 'report-finalreport__interaction-chart']);
+        foreach ($activities as $activity) {
+            $percentage = ((int)$activity['interactions'] / $maximum) * 100;
+            $bar = \html_writer::div('', 'report-finalreport__interaction-bar', [
+                'aria-hidden' => 'true',
+                'style' => '--finalreport-interaction-width: ' . number_format($percentage, 4, '.', '') . '%;',
+            ]);
+            $html .= \html_writer::start_tag('li', ['class' => 'report-finalreport__interaction-row']);
+            $html .= \html_writer::div(
+                s(strip_tags(format_string($activity['name']))),
+                'report-finalreport__interaction-label'
+            );
+            $html .= \html_writer::div($bar, 'report-finalreport__interaction-track');
+            $html .= \html_writer::div(
+                format_float($activity['interactions'], 0),
+                'report-finalreport__interaction-value'
+            );
+            $html .= \html_writer::end_tag('li');
+        }
+        $html .= \html_writer::end_tag('ol');
+
+        return $html;
+    }
+
+    /**
      * Wraps one chart in a layout cell.
      *
      * @param string $chart Rendered chart.
+     * @param bool $wide Whether the chart needs the full dashboard width.
      * @return string HTML.
      */
-    private function chart_container(string $chart): string {
-        return \html_writer::div($chart, 'report-finalreport__chart');
+    private function chart_container(string $chart, bool $wide = false): string {
+        $classes = 'report-finalreport__chart';
+        if ($wide) {
+            $classes .= ' report-finalreport__chart--wide';
+        }
+        return \html_writer::div($chart, $classes);
+    }
+
+    /**
+     * Applies the primary colour configured by the active Moodle theme.
+     *
+     * If the theme does not expose a hexadecimal primary colour, Moodle's own
+     * chart colour set is left in control rather than introducing a plugin colour.
+     *
+     * @param \core\chart_series $series Chart series to colour.
+     * @return void
+     */
+    private function apply_theme_colour(\core\chart_series $series): void {
+        $colour = $this->theme_primary_colour();
+        if ($colour !== null) {
+            $series->set_color($colour);
+        }
+    }
+
+    /**
+     * Reads a hexadecimal primary colour from the active theme, when available.
+     *
+     * @return string|null A CSS hexadecimal colour or null when Moodle should use its chart defaults.
+     */
+    private function theme_primary_colour(): ?string {
+        $theme = $this->page->theme;
+        $candidates = [];
+
+        if (!empty($theme->settings) && is_object($theme->settings)) {
+            foreach (['brandcolor', 'primarycolor', 'primarycolour', 'maincolor', 'themecolor'] as $setting) {
+                if (!empty($theme->settings->{$setting})) {
+                    $candidates[] = $theme->settings->{$setting};
+                }
+            }
+        }
+
+        if (!empty($theme->name)) {
+            $themeconfig = get_config('theme_' . $theme->name);
+            if (is_object($themeconfig)) {
+                foreach (['brandcolor', 'primarycolor', 'primarycolour', 'maincolor', 'themecolor'] as $setting) {
+                    if (!empty($themeconfig->{$setting})) {
+                        $candidates[] = $themeconfig->{$setting};
+                    }
+                }
+            }
+        }
+
+        foreach ($candidates as $candidate) {
+            $colour = trim((string)$candidate);
+            if (preg_match('/^#?([a-f0-9]{3}|[a-f0-9]{6})$/i', $colour)) {
+                return '#' . ltrim($colour, '#');
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -134,7 +134,7 @@ class pdf_builder {
             [31, 137, 101]
         );
         if ($data['grade']['available']) {
-            self::bar($pdf, get_string('gradepercent', 'report_finalreport'), $data['grade']['averagepercent'], [122, 82, 173]);
+            self::bar($pdf, get_string('gradepercent', 'report_finalreport'), $data['grade']['averagepercent'], [15, 108, 191]);
         }
 
         if ($data['grade']['available']) {
