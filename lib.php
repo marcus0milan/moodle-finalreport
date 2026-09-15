@@ -15,5 +15,8 @@
 // along with Moodle. If not, see <https://www.gnu.org/licenses/>.
 
 function report_finalreport_extend_navigation_course($navigation, $course, $context) {
-    
+    if (has_capability('report/finalreport:view', $context)) {
+        $url = new moodle/url('/report/finalreport/index.php', ['id' => $course->id]);
+        
+    }
 }
