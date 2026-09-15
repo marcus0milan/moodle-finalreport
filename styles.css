@@ -1,0 +1,115 @@
+.report-finalreport {
+    --finalreport-border: #d9e1ea;
+    --finalreport-muted: #5f6b7a;
+    --finalreport-primary: #0f6cbf;
+}
+
+.report-finalreport__header {
+    align-items: center;
+    display: flex;
+    gap: 1.5rem;
+    justify-content: space-between;
+    margin-bottom: .25rem;
+}
+
+.report-finalreport__title {
+    font-size: 1.5rem;
+    margin: 0 0 .25rem;
+}
+
+.report-finalreport__description,
+.report-finalreport__generated,
+.report-finalreport__kpi-detail {
+    color: var(--finalreport-muted);
+}
+
+.report-finalreport__generated {
+    font-size: .875rem;
+    margin-bottom: 1.25rem;
+}
+
+.report-finalreport__notice {
+    margin-bottom: 1rem;
+}
+
+.report-finalreport__kpis {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 1.25rem 0;
+}
+
+.report-finalreport__kpi,
+.report-finalreport__chart {
+    background: #fff;
+    border: 1px solid var(--finalreport-border);
+    border-radius: .5rem;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+
+.report-finalreport__kpi {
+    min-height: 9.25rem;
+    padding: 1.25rem;
+}
+
+.report-finalreport__kpi-value {
+    color: var(--finalreport-primary);
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.report-finalreport__kpi-label {
+    font-weight: 600;
+    margin-top: .5rem;
+}
+
+.report-finalreport__kpi-detail {
+    font-size: .875rem;
+    margin-top: .3rem;
+}
+
+.report-finalreport__charts {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 1.5rem 0;
+}
+
+.report-finalreport__chart {
+    min-height: 20rem;
+    padding: 1rem;
+}
+
+.report-finalreport__chart .chart-area {
+    min-height: 17rem;
+}
+
+.report-finalreport__section-title {
+    font-size: 1.2rem;
+    margin: 1.5rem 0 .75rem;
+}
+
+.report-finalreport__table td,
+.report-finalreport__table th {
+    vertical-align: middle;
+}
+
+@media (max-width: 991px) {
+    .report-finalreport__kpis,
+    .report-finalreport__charts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 575px) {
+    .report-finalreport__header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .report-finalreport__kpis,
+    .report-finalreport__charts {
+        grid-template-columns: 1fr;
+    }
+}

@@ -20,4 +20,4 @@ function report_finalreport_extend_navigation_course($navigation, $course, $cont
         $navigation->add(get_string('pluginname', 'report_finalreport'), $url,
             navigation_node::TYPE_SETTING, null, null, new pix_icon('i/report', ''));
     }
-};
+}

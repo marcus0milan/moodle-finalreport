@@ -24,4 +24,13 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
+    'report/finalreport:export' => [
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_COURSE,
+        'archetypes' => [
+            'teacher' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW,
+        ],
+    ],
 ];

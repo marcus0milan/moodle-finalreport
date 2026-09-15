@@ -14,5 +14,46 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle. If not, see <https://www.gnu.org/licenses/>.
 
-$string['pluginname'] = 'Final report';
+$string['pluginname'] = 'Course final report';
+$string['finalreport:view'] = 'View the course final report';
+$string['finalreport:export'] = 'Download the course final report as PDF';
+$string['reporttitle'] = 'Course final report';
+$string['reportdescription'] = 'Completion, grade and engagement indicators for enrolled participants.';
+$string['downloadpdf'] = 'Download PDF report';
+$string['generatedat'] = 'Generated on {$a}';
+$string['participants'] = 'Tracked participants';
+$string['coursecompletion'] = 'Course completion';
+$string['completedparticipants'] = 'Completed participants';
+$string['averagegrade'] = 'Average grade';
+$string['gradedparticipants'] = 'Participants with a grade';
+$string['interactions'] = 'Recorded interactions';
+$string['views'] = 'Views';
+$string['activeparticipants'] = 'Active participants in logs';
+$string['completionnotconfigured'] = 'Course completion is disabled or has no criteria. The completion rate will be unavailable until it is configured.';
+$string['lognotavailable'] = 'Standard log storage is not available. View and interaction indicators are shown as zero.';
+$string['nogrades'] = 'There are no final course grades for tracked participants yet.';
+$string['noactivities'] = 'There are no activities available for analysis in this course.';
+$string['activityanalysis'] = 'Performance and engagement by activity';
+$string['activity'] = 'Activity';
+$string['type'] = 'Type';
+$string['completion'] = 'Completion';
+$string['uniqueviews'] = 'Active participants';
+$string['lastinteraction'] = 'Last interaction';
+$string['never'] = 'Never';
+$string['notavailable'] = 'Not available';
+$string['gradepercent'] = 'Normalised average';
+$string['gradedistribution'] = 'Grade distribution';
+$string['activityinteractions'] = 'Interactions by activity';
+$string['completionoverview'] = 'Completion overview';
+$string['completed'] = 'Completed';
+$string['notcompleted'] = 'Not completed';
+$string['range0_59'] = '0–59%';
+$string['range60_69'] = '60–69%';
+$string['range70_79'] = '70–79%';
+$string['range80_89'] = '80–89%';
+$string['range90_100'] = '90–100%';
+$string['completiondisabled'] = 'Completion not configured';
+$string['pdfsubtitle'] = 'Academic and engagement indicators';
+$string['pdfnote'] = 'Access data includes events currently retained in Moodle standard log storage.';
+$string['activitycompletion'] = 'Activity completion';
 
