@@ -19,6 +19,15 @@ require_once(__DIR__ . '/../../config.php');
 $courseid = required_param('id', PARAM_INT);
 $download = optional_param('download', 0, PARAM_BOOL);
 
+$tipos = [
+    'feedback',
+    'assign',
+    'quiz',
+    'forum',
+    'page',
+    'resource'
+];
+
 $course = get_course($courseid);
 $context = context_course::instance($course->id);
 
