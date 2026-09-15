@@ -275,45 +275,30 @@ class renderer extends \plugin_renderer_base {
     }
 
     /**
-     * Renders an accessible horizontal bar chart for activity interactions.
-     *
-     * CSS draws the bars with the active theme's primary colour. This avoids a
-     * fixed canvas palette and keeps full activity names visible at every width.
+     * Renders a vertical bar chart for activity interactions.
      *
      * @param array<int, array> $activities Activity rows, ordered by interactions.
      * @return string Chart HTML.
      */
     private function interaction_chart(array $activities): string {
-        $maximum = max(array_column($activities, 'interactions'));
-        $maximum = max(1, (int)$maximum);
+        $chart = new \core\chart_bar();
+        $chart->set_title(get_string('activityinteractions', 'report_finalreport'));
+        $chart->set_horizontal(false);
+        $chart->set_legend_options(['display' => false]);
+        $chart->set_labels(array_map(static function(array $activity): string {
+            return s(strip_tags(format_string($activity['name'])));
+        }, $activities));
 
-        $html = \html_writer::tag(
-            'h3',
-            get_string('activityinteractions', 'report_finalreport'),
-            ['class' => 'report-finalreport__chart-title']
+        $series = new \core\chart_series(
+            get_string('interactions', 'report_finalreport'),
+            array_map(static function(array $activity): int {
+                return (int)$activity['interactions'];
+            }, $activities)
         );
-        $html .= \html_writer::start_tag('ol', ['class' => 'report-finalreport__interaction-chart']);
-        foreach ($activities as $activity) {
-            $percentage = ((int)$activity['interactions'] / $maximum) * 100;
-            $bar = \html_writer::div('', 'report-finalreport__interaction-bar', [
-                'aria-hidden' => 'true',
-                'style' => '--finalreport-interaction-width: ' . number_format($percentage, 4, '.', '') . '%;',
-            ]);
-            $html .= \html_writer::start_tag('li', ['class' => 'report-finalreport__interaction-row']);
-            $html .= \html_writer::div(
-                s(strip_tags(format_string($activity['name']))),
-                'report-finalreport__interaction-label'
-            );
-            $html .= \html_writer::div($bar, 'report-finalreport__interaction-track');
-            $html .= \html_writer::div(
-                format_float($activity['interactions'], 0),
-                'report-finalreport__interaction-value'
-            );
-            $html .= \html_writer::end_tag('li');
-        }
-        $html .= \html_writer::end_tag('ol');
+        $this->apply_theme_colour($series);
+        $chart->add_series($series);
 
-        return $html;
+        return $this->output->render($chart);
     }
 
     /**
