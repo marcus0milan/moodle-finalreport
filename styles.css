@@ -1,5 +1,5 @@
 .report-finalreport {
-    /* Tokens locais — todos derivados das variáveis do tema */
+    /* Local tokens — all derived from theme variables */
     --finalreport-border: var(--bs-border-color, var(--gray-400, #cbd5e1));
     --finalreport-border-soft: color-mix(in srgb, var(--finalreport-border) 60%, transparent);
     --finalreport-muted: var(--bs-secondary-color, var(--gray-600, #475569));
@@ -17,7 +17,7 @@
     max-width: 76rem;
 }
 
-/* ---------- Cabeçalho ---------- */
+/* ---------- Header ---------- */
 
 .report-finalreport__header {
     align-items: center;
@@ -31,7 +31,7 @@
     position: relative;
 }
 
-/* Barra de destaque institucional junto ao título */
+/* Institutional accent bar beside the title */
 .report-finalreport__header::before {
     background: var(--finalreport-primary);
     border-radius: 2px;
@@ -73,7 +73,7 @@
     margin-bottom: 1rem;
 }
 
-/* ---------- Filtros ---------- */
+/* ---------- Filters ---------- */
 
 .report-finalreport__filter {
     margin: 0 0 1.75rem;
@@ -192,7 +192,7 @@
     padding-top: .45rem;
 }
 
-/* ---------- Gráficos ---------- */
+/* ---------- Charts ---------- */
 
 .report-finalreport__charts {
     display: grid;
@@ -262,7 +262,7 @@
     text-transform: uppercase;
 }
 
-/* ---------- Seções e tabelas ---------- */
+/* ---------- Sections and tables ---------- */
 
 .report-finalreport__section-title {
     align-items: center;
@@ -313,7 +313,7 @@
     background: color-mix(in srgb, var(--finalreport-primary) 6%, var(--finalreport-surface));
 }
 
-/* ---------- Responsivo ---------- */
+/* ---------- Responsive ---------- */
 
 @media (max-width: 991px) {
     .report-finalreport__kpis,
