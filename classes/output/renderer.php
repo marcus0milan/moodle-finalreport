@@ -223,9 +223,10 @@ class renderer extends \plugin_renderer_base {
     private function charts(array $data): string {
         $charts = [];
         if ($data['completion']['configured']) {
-            $chart = new \core\chart_bar();
+            $chart = new \core\chart_pie();
+            $chart->set_doughnut(true);
             $chart->set_title(get_string('completionoverview', 'report_finalreport'));
-            $chart->set_legend_options(['display' => false]);
+            $chart->set_legend_options(['display' => true]);
             $chart->set_labels([
                 get_string('completed', 'report_finalreport'),
                 get_string('notcompleted', 'report_finalreport'),
@@ -240,9 +241,10 @@ class renderer extends \plugin_renderer_base {
         }
 
         if ($data['grade']['available']) {
-            $chart = new \core\chart_bar();
+            $chart = new \core\chart_pie();
+            $chart->set_doughnut(true);
             $chart->set_title(get_string('gradedistribution', 'report_finalreport'));
-            $chart->set_legend_options(['display' => false]);
+            $chart->set_legend_options(['display' => true]);
             $chart->set_labels([
                 get_string('range0_59', 'report_finalreport'),
                 get_string('range60_69', 'report_finalreport'),
@@ -260,12 +262,11 @@ class renderer extends \plugin_renderer_base {
         }
 
         if ($data['engagement']['available'] && $data['activities']) {
-            $activities = $data['activities'];
-            usort($activities, static function(array $left, array $right): int {
-                return $right['interactions'] <=> $left['interactions'];
-            });
-            $activities = array_slice($activities, 0, 10);
-            $charts[] = $this->chart_container($this->interaction_chart($activities), true);
+            $charts[] = $this->chart_container($this->activity_type_chart($data['activities']));
+        }
+
+        if ($data['engagement']['available']) {
+            $charts[] = $this->chart_container($this->engagement_chart($data['engagement']));
         }
 
         if (!$charts) {
@@ -275,27 +276,57 @@ class renderer extends \plugin_renderer_base {
     }
 
     /**
-     * Renders a vertical bar chart for activity interactions.
+        * Renders a pie chart for interactions grouped by activity type.
      *
      * @param array<int, array> $activities Activity rows, ordered by interactions.
      * @return string Chart HTML.
      */
-    private function interaction_chart(array $activities): string {
-        $chart = new \core\chart_bar();
+    private function activity_type_chart(array $activities): string {
+        $interactions = [];
+        foreach ($activities as $activity) {
+            $type = $activity['modulelabel'];
+            if (!isset($interactions[$type])) {
+                $interactions[$type] = 0;
+            }
+            $interactions[$type] += (int)$activity['interactions'];
+        }
+        arsort($interactions, SORT_NUMERIC);
+
+        $chart = new \core\chart_pie();
+        $chart->set_doughnut(true);
         $chart->set_title(get_string('activityinteractions', 'report_finalreport'));
-        $chart->set_horizontal(false);
-        $chart->set_legend_options(['display' => false]);
-        $chart->set_labels(array_map(static function(array $activity): string {
-            return s(strip_tags(format_string($activity['name'])));
-        }, $activities));
+        $chart->set_labels(array_keys($interactions));
 
         $series = new \core\chart_series(
             get_string('interactions', 'report_finalreport'),
-            array_map(static function(array $activity): int {
-                return (int)$activity['interactions'];
-            }, $activities)
+            array_values($interactions)
         );
         $this->apply_theme_colour($series);
+        $chart->add_series($series);
+
+        return $this->output->render($chart);
+    }
+
+    /**
+     * Renders the relative engagement levels calculated from course logs.
+     *
+     * @param array $engagement Engagement summary.
+     * @return string Chart HTML.
+     */
+    private function engagement_chart(array $engagement): string {
+        $chart = new \core\chart_pie();
+        $chart->set_doughnut(true);
+        $chart->set_title(get_string('engagementlevels', 'report_finalreport'));
+        $chart->set_labels([
+            get_string('engagementlow', 'report_finalreport'),
+            get_string('engagementmedium', 'report_finalreport'),
+            get_string('engagementhigh', 'report_finalreport'),
+        ]);
+        $series = new \core\chart_series(get_string('participants', 'report_finalreport'), [
+            (int)$engagement['levels']['low'],
+            (int)$engagement['levels']['medium'],
+            (int)$engagement['levels']['high'],
+        ]);
         $chart->add_series($series);
 
         return $this->output->render($chart);

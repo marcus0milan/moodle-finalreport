@@ -280,6 +280,11 @@ class report_maker {
                 'interactions' => 0,
                 'views' => 0,
                 'activeparticipants' => 0,
+                'levels' => [
+                    'low' => 0,
+                    'medium' => 0,
+                    'high' => 0,
+                ],
             ],
             'activities' => [],
         ];
@@ -331,15 +336,74 @@ class report_maker {
         ]);
         $activeparticipants = $DB->get_fieldset_sql($usersql, $userparams);
 
+        $usersql = "SELECT eu.id AS userid,
+                           COALESCE(logstats.interactions, 0) AS interactions,
+                           COALESCE(logstats.activitycount, 0) AS activitycount
+                      FROM ({$enrolledsql}) eu
+                 LEFT JOIN (
+                           SELECT l.userid,
+                                  COUNT(1) AS interactions,
+                                  COUNT(DISTINCT l.contextinstanceid) AS activitycount
+                             FROM {logstore_standard_log} l
+                            WHERE l.courseid = :scorecourseid
+                              AND l.contextlevel = :scorecontextlevel
+                              AND l.contextinstanceid {$insql}
+                         GROUP BY l.userid
+                 ) logstats ON logstats.userid = eu.id";
+        $userscores = $DB->get_records_sql($usersql, array_merge($enrolledparams, $inparams, [
+            'scorecourseid' => $course->id,
+            'scorecontextlevel' => CONTEXT_MODULE,
+        ]));
+        $levels = self::classify_engagement($userscores);
+
         return [
             'summary' => [
                 'available' => true,
                 'interactions' => $interactions,
                 'views' => $views,
                 'activeparticipants' => count($activeparticipants),
+                'levels' => $levels,
             ],
             'activities' => $activitystats,
         ];
+    }
+
+    /**
+     * Classifies participants by their relative activity in the course logs.
+     *
+     * The score combines event volume with the number of different activities
+     * used, then assigns positive scores to relative thirds of the cohort.
+     *
+     * @param array<int, \stdClass> $userscores Participant log scores.
+     * @return array<string, int> Engagement levels keyed by level name.
+     */
+    private static function classify_engagement(array $userscores): array {
+        $levels = ['low' => 0, 'medium' => 0, 'high' => 0];
+        if (!$userscores) {
+            return $levels;
+        }
+
+        $scores = [];
+        foreach ($userscores as $userid => $userscore) {
+            $score = (int)$userscore->interactions + ((int)$userscore->activitycount * 2);
+            $scores[$userid] = $score;
+        }
+        asort($scores, SORT_NUMERIC);
+        $participantcount = count($scores);
+        $position = 0;
+
+        foreach ($scores as $score) {
+            $position++;
+            if ($score === 0 || ($position / $participantcount) <= (1 / 3)) {
+                $levels['low']++;
+            } else if (($position / $participantcount) <= (2 / 3)) {
+                $levels['medium']++;
+            } else {
+                $levels['high']++;
+            }
+        }
+
+        return $levels;
     }
 
     /**
