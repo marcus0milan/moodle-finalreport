@@ -20,6 +20,6 @@ defined('MOODLE_INTERNAL') || die();
 $plugin->component = 'report_finalreport';
 $plugin->version = 2026102300;
 $plugin->requires = 2024042200;
-$plugin->supported = [404, 405, 406];
+$plugin->supported = [404, 406];
 $plugin->maturity = MATURITY_STABLE;
 $plugin->release = '1.2.0';
