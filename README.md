@@ -4,5 +4,5 @@ A report Moodle plugin developed for easy generation of report in a course in ex
 
 ## Requirements
 
-- Moodle 4.5 or 4.6 (branches 405 and 406);
+- Moodle 4.4, 4.5, or 4.6 (branches 404, 405, and 406);
 - PHP version compatible with the installed Moodle version;
