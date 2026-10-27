@@ -31,6 +31,84 @@
     position: relative;
 }
 
+/* View switch controls alternate one analytical view at a time. */
+.report-finalreport__view-input {
+    height: 1px;
+    margin: -1px;
+    opacity: 0;
+    overflow: hidden;
+    position: absolute;
+    width: 1px;
+}
+
+.report-finalreport__actions {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: .65rem;
+    justify-content: flex-end;
+}
+
+.report-finalreport__view-switch {
+    background: var(--finalreport-surface-tint);
+    border: 1px solid var(--finalreport-border);
+    border-radius: var(--finalreport-radius);
+    display: inline-flex;
+    gap: .2rem;
+    padding: .25rem;
+}
+
+.report-finalreport__view-switch label {
+    border: 1px solid transparent;
+    border-radius: calc(var(--finalreport-radius) - .15rem);
+    color: var(--finalreport-muted);
+    cursor: pointer;
+    font-size: .8125rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0;
+    padding: .55rem .75rem;
+    text-align: center;
+    transition: background-color .15s ease, box-shadow .15s ease, color .15s ease;
+}
+
+.report-finalreport__view-switch label:hover {
+    color: var(--bs-heading-color, #172b4d);
+}
+
+#report-finalreport-view-charts:checked ~ .report-finalreport__header
+.report-finalreport__view-switch label[for="report-finalreport-view-charts"],
+#report-finalreport-view-table:checked ~ .report-finalreport__header
+.report-finalreport__view-switch label[for="report-finalreport-view-table"] {
+    background: var(--finalreport-surface);
+    border-color: var(--finalreport-border-soft);
+    box-shadow: 0 1px 3px rgb(15 23 42 / 10%);
+    color: var(--finalreport-primary);
+}
+
+#report-finalreport-view-charts:focus-visible ~ .report-finalreport__header
+.report-finalreport__view-switch label[for="report-finalreport-view-charts"],
+#report-finalreport-view-table:focus-visible ~ .report-finalreport__header
+.report-finalreport__view-switch label[for="report-finalreport-view-table"] {
+    outline: 3px solid color-mix(in srgb, var(--finalreport-primary) 28%, transparent);
+    outline-offset: 2px;
+}
+
+#report-finalreport-view-table:checked ~ .report-finalreport__chart-view,
+#report-finalreport-view-charts:checked ~ .report-finalreport__table-view {
+    display: none;
+}
+
+.report-finalreport__chart-view,
+.report-finalreport__table-view {
+    min-width: 0;
+}
+
+.report-finalreport__table-view .report-finalreport__section-title {
+    margin-top: 0;
+}
+
 /* Institutional accent bar beside the title */
 .report-finalreport__header::before {
     background: var(--finalreport-primary);
@@ -324,8 +402,26 @@
 
 @media (max-width: 575px) {
     .report-finalreport__header {
-        align-items: flex-start;
+        align-items: stretch;
         flex-direction: column;
+    }
+
+    .report-finalreport__actions {
+        align-items: stretch;
+        width: 100%;
+    }
+
+    .report-finalreport__view-switch {
+        flex: 1 1 100%;
+    }
+
+    .report-finalreport__view-switch label {
+        flex: 1;
+    }
+
+    .report-finalreport__download {
+        justify-content: center;
+        width: 100%;
     }
 
     .report-finalreport__generated {

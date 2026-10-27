@@ -20,11 +20,8 @@ $courseid = required_param('id', PARAM_INT);
 $download = optional_param('download', 0, PARAM_BOOL);
 $filterrequested = optional_param('filter', 0, PARAM_BOOL);
 
-// The filter is intentionally an array: more than one module type may be analysed together.
 $type = optional_param_array('type', [], PARAM_ALPHANUMEXT);
 
-// PDF links use one scalar parameter because moodle_url cannot add repeated
-// type[] parameters. Values are normalised against the course modules below.
 if (!$type && $filterrequested) {
     $exporttypes = optional_param('types', '', PARAM_TEXT);
     if ($exporttypes !== '') {

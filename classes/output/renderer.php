@@ -46,12 +46,34 @@ class renderer extends \plugin_renderer_base {
         $coursefullname = format_string($data['course']->fullname, true, ['context' => $coursecontext]);
 
         $html = \html_writer::start_div('report-finalreport');
+        $html .= \html_writer::empty_tag('input', [
+            'checked' => 'checked',
+            'class' => 'report-finalreport__view-input',
+            'id' => 'report-finalreport-view-charts',
+            'name' => 'report-finalreport-view',
+            'type' => 'radio',
+        ]);
+        $html .= \html_writer::empty_tag('input', [
+            'class' => 'report-finalreport__view-input',
+            'id' => 'report-finalreport-view-table',
+            'name' => 'report-finalreport-view',
+            'type' => 'radio',
+        ]);
         $html .= \html_writer::start_div('report-finalreport__header');
         $html .= \html_writer::div(
             \html_writer::tag('h2', $coursefullname, ['class' => 'report-finalreport__title']) .
             \html_writer::div(get_string('reportdescription', 'report_finalreport'), 'report-finalreport__description'),
             'report-finalreport__title-area'
         );
+        $html .= \html_writer::start_div('report-finalreport__actions');
+        $html .= \html_writer::start_div('report-finalreport__view-switch');
+        $html .= \html_writer::tag('label', get_string('chartview', 'report_finalreport'), [
+            'for' => 'report-finalreport-view-charts',
+        ]);
+        $html .= \html_writer::tag('label', get_string('tableview', 'report_finalreport'), [
+            'for' => 'report-finalreport-view-table',
+        ]);
+        $html .= \html_writer::end_div();
         if (has_capability('report/finalreport:export', $coursecontext)) {
             $icon = $this->output->pix_icon('i/download', '', 'core', ['class' => 'iconsmall']);
             $html .= \html_writer::link(
@@ -60,6 +82,7 @@ class renderer extends \plugin_renderer_base {
                 ['class' => 'btn btn-primary report-finalreport__download']
             );
         }
+        $html .= \html_writer::end_div();
         $html .= \html_writer::end_div();
         $html .= \html_writer::div(
             get_string('generatedat', 'report_finalreport', userdate($data['generatedat'])),
@@ -83,8 +106,12 @@ class renderer extends \plugin_renderer_base {
         }
 
         $html .= $this->kpis($data);
+        $html .= \html_writer::start_div('report-finalreport__chart-view');
         $html .= $this->charts($data);
+        $html .= \html_writer::end_div();
+        $html .= \html_writer::start_div('report-finalreport__table-view');
         $html .= $this->activity_table($data['activities']);
+        $html .= \html_writer::end_div();
         $html .= \html_writer::end_div();
 
         return $html;
