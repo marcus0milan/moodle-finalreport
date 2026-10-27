@@ -267,25 +267,31 @@ class renderer extends \plugin_renderer_base {
             $charts[] = $this->chart_container($this->output->render($chart));
         }
 
-        if ($data['grade']['available']) {
-            $chart = new \core\chart_pie();
-            $chart->set_doughnut(true);
-            $chart->set_title(get_string('gradedistribution', 'report_finalreport'));
-            $chart->set_legend_options(['display' => true]);
-            $chart->set_labels([
-                get_string('range0_59', 'report_finalreport'),
-                get_string('range60_69', 'report_finalreport'),
-                get_string('range70_79', 'report_finalreport'),
-                get_string('range80_89', 'report_finalreport'),
-                get_string('range90_100', 'report_finalreport'),
-            ]);
-            $series = new \core\chart_series(
-                get_string('gradedparticipants', 'report_finalreport'),
-                $data['grade']['distribution']
-            );
-            $this->apply_theme_colour($series);
-            $chart->add_series($series);
-            $charts[] = $this->chart_container($this->output->render($chart));
+        if (!empty($data['grade']['available']) && !empty($data['grade']['series'])) {
+            foreach ($data['grade']['series'] as $gradeseries) {
+                $chart = new \core\chart_pie();
+                $chart->set_doughnut(true);
+                $charttitle = $gradeseries['label'];
+                if (!empty($gradeseries['mandatorythreshold'])) {
+                    $charttitle .= ' — ' . get_string('mandatoryfrequency', 'report_finalreport');
+                }
+                $chart->set_title($charttitle);
+                $chart->set_legend_options(['display' => true]);
+                $chart->set_labels([
+                    get_string('range0_59', 'report_finalreport'),
+                    get_string('range60_69', 'report_finalreport'),
+                    get_string('range70_79', 'report_finalreport'),
+                    get_string('range80_89', 'report_finalreport'),
+                    get_string('range90_100', 'report_finalreport'),
+                ]);
+                $series = new \core\chart_series(
+                    get_string('gradedparticipants', 'report_finalreport'),
+                    $gradeseries['distribution']
+                );
+                $this->apply_theme_colour($series);
+                $chart->add_series($series);
+                $charts[] = $this->chart_container($this->output->render($chart));
+            }
         }
 
         if ($data['engagement']['available'] && $data['activities']) {

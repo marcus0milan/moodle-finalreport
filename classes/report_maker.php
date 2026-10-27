@@ -407,7 +407,7 @@ class report_maker {
     }
 
     /**
-     * Gets average final course grade and a normalised distribution.
+     * Gets component grade categories and the normalised final-course distribution.
      *
      * @param \stdClass $course Course record.
      * @param string $enrolledsql SQL for completion-tracked, enrolled users.
@@ -425,25 +425,116 @@ class report_maker {
             'minimum' => null,
             'maximum' => null,
             'distribution' => [0, 0, 0, 0, 0],
+            'series' => [],
         ];
-        $item = $DB->get_record(
+        $finalitem = $DB->get_record(
             'grade_items',
             ['courseid' => $course->id, 'itemtype' => 'course'],
-            'id,grademin,grademax,gradetype',
+            'id,itemname,grademin,grademax,gradetype',
             IGNORE_MISSING
         );
-        if (!$item || (int)$item->gradetype !== GRADE_TYPE_VALUE || $item->grademax <= $item->grademin) {
+        if (!$finalitem || (int)$finalitem->gradetype !== GRADE_TYPE_VALUE ||
+            $finalitem->grademax <= $finalitem->grademin) {
             return $empty;
         }
 
-        $sql = "SELECT gg.id, gg.finalgrade
+        $finalstats = self::get_grade_series($finalitem, $enrolledsql, $enrolledparams);
+        if (!$finalstats) {
+            return $empty;
+        }
+
+        $categoryitems = $DB->get_records(
+            'grade_items',
+            ['courseid' => $course->id, 'itemtype' => 'category', 'gradetype' => GRADE_TYPE_VALUE],
+            'sortorder ASC,id ASC',
+            'id,iteminstance,itemname,grademin,grademax,gradetype'
+        );
+        $series = [];
+        $frequencyitem = null;
+        $nonfrequencyitems = [];
+        foreach ($categoryitems as $categoryitem) {
+            $category = $DB->get_record('grade_categories', ['id' => $categoryitem->iteminstance], 'id,fullname');
+            $label = $category ? (string)$category->fullname : (string)$categoryitem->itemname;
+            $stats = self::get_grade_series($categoryitem, $enrolledsql, $enrolledparams);
+            if (!$stats) {
+                continue;
+            }
+            $kind = self::is_frequency_grade_name($label) ? 'frequency' : 'grade';
+            $series[] = [
+                'key' => 'category-' . $categoryitem->id,
+                'label' => $label,
+                'kind' => $kind,
+                'mandatorythreshold' => null,
+            ] + $stats;
+            if ($kind === 'frequency') {
+                $frequencyitem = $categoryitem;
+            } else {
+                $nonfrequencyitems[] = $categoryitem;
+            }
+        }
+
+        // Type Z has only the two mandatory component categories. With a
+        // separate final category (type X) the Moodle aggregate remains the
+        // authoritative final result and no 75% override is applied.
+        $mandatoryfrequency = $frequencyitem && count($series) === 2 && $nonfrequencyitems;
+        if ($mandatoryfrequency) {
+            foreach ($series as &$categoryseries) {
+                if ($categoryseries['kind'] === 'frequency') {
+                    $categoryseries['mandatorythreshold'] = 75.0;
+                }
+            }
+            unset($categoryseries);
+            $finalstats = self::apply_mandatory_frequency(
+                $finalitem,
+                $frequencyitem,
+                $finalstats,
+                $enrolledsql,
+                $enrolledparams
+            );
+        }
+
+        // In type Y a single category is itself the final result. Avoid
+        // duplicating that category as a separate "final average" chart.
+        if (count($series) !== 1) {
+            $series[] = [
+                'key' => 'final',
+                'label' => get_string('finalgrade', 'report_finalreport'),
+                'kind' => 'final',
+                'mandatorythreshold' => $mandatoryfrequency ? 75.0 : null,
+            ] + $finalstats;
+        }
+
+        $count = (int)$finalstats['count'];
+        return [
+            'available' => true,
+            'count' => $count,
+            'average' => $finalstats['average'],
+            'averagepercent' => $finalstats['averagepercent'],
+            'minimum' => $finalstats['minimum'],
+            'maximum' => $finalstats['maximum'],
+            'distribution' => $finalstats['distribution'],
+            'series' => $series,
+        ];
+    }
+
+    /**
+     * Calculates a normalised grade distribution for one Moodle grade item.
+     */
+    private static function get_grade_series(
+        \stdClass $item,
+        string $enrolledsql,
+        array $enrolledparams
+    ): ?array {
+        global $DB;
+
+        $sql = "SELECT gg.userid, gg.finalgrade
                   FROM {grade_grades} gg
                   JOIN ({$enrolledsql}) eu ON eu.id = gg.userid
                  WHERE gg.itemid = :itemid
                    AND gg.finalgrade IS NOT NULL";
         $records = $DB->get_records_sql($sql, array_merge($enrolledparams, ['itemid' => $item->id]));
         if (!$records) {
-            return $empty;
+            return null;
         }
 
         $total = 0.0;
@@ -451,22 +542,118 @@ class report_maker {
         foreach ($records as $record) {
             $grade = (float)$record->finalgrade;
             $total += $grade;
-            $percent = max(0, min(100, (($grade - $item->grademin) / ($item->grademax - $item->grademin)) * 100));
-            $bucket = $percent < 60 ? 0 : ($percent < 70 ? 1 : ($percent < 80 ? 2 : ($percent < 90 ? 3 : 4)));
-            $distribution[$bucket]++;
+            $percent = self::normalise_grade($grade, (float)$item->grademin, (float)$item->grademax);
+            $distribution[self::grade_distribution_bucket($percent)]++;
         }
 
         $count = count($records);
         $average = $total / $count;
         return [
-            'available' => true,
             'count' => $count,
             'average' => $average,
-            'averagepercent' => (($average - $item->grademin) / ($item->grademax - $item->grademin)) * 100,
+            'averagepercent' => self::normalise_grade(
+                $average,
+                (float)$item->grademin,
+                (float)$item->grademax
+            ),
             'minimum' => (float)$item->grademin,
             'maximum' => (float)$item->grademax,
             'distribution' => $distribution,
         ];
+    }
+
+    /**
+     * Applies the mandatory 75% frequency rule to the final course result.
+     */
+    private static function apply_mandatory_frequency(
+        \stdClass $finalitem,
+        \stdClass $frequencyitem,
+        array $finalstats,
+        string $enrolledsql,
+        array $enrolledparams
+    ): array {
+        global $DB;
+
+        $sql = "SELECT gg.userid, gg.finalgrade
+                  FROM {grade_grades} gg
+                  JOIN ({$enrolledsql}) eu ON eu.id = gg.userid
+                 WHERE gg.itemid = :itemid
+                   AND gg.finalgrade IS NOT NULL";
+        $frequency = $DB->get_records_sql(
+            $sql,
+            array_merge($enrolledparams, ['itemid' => $frequencyitem->id])
+        );
+        $final = $DB->get_records_sql(
+            $sql,
+            array_merge($enrolledparams, ['itemid' => $finalitem->id])
+        );
+        $distribution = [0, 0, 0, 0, 0];
+        $total = 0.0;
+        foreach ($final as $userid => $record) {
+            $grade = (float)$record->finalgrade;
+            $frequencypct = isset($frequency[$userid])
+                ? self::normalise_grade(
+                    (float)$frequency[$userid]->finalgrade,
+                    (float)$frequencyitem->grademin,
+                    (float)$frequencyitem->grademax
+                )
+                : 0.0;
+            $effectivegrade = $frequencypct < 75.0 ? 0.0 : $grade;
+            $total += $effectivegrade;
+            $effectivepct = self::normalise_grade(
+                $effectivegrade,
+                (float)$finalitem->grademin,
+                (float)$finalitem->grademax
+            );
+            $distribution[self::grade_distribution_bucket($effectivepct)]++;
+        }
+
+        $count = count($final);
+        $average = $count ? $total / $count : null;
+        return [
+            'count' => $count,
+            'average' => $average,
+            'averagepercent' => $count ? self::normalise_grade(
+                (float)$average,
+                (float)$finalitem->grademin,
+                (float)$finalitem->grademax
+            ) : null,
+            'minimum' => (float)$finalitem->grademin,
+            'maximum' => (float)$finalitem->grademax,
+            'distribution' => $distribution,
+        ];
+    }
+
+    /** Detects conventional frequency/attendance category names. */
+    private static function is_frequency_grade_name(string $label): bool {
+        $normalised = mb_strtolower($label, 'UTF-8');
+        $normalised = \core_text::remove_diacritics($normalised);
+        return preg_match('/frequ|presenc|attendance|presence|assiduid/', $normalised) === 1;
+    }
+
+    /** Normalises a raw grade to bounded percentages. */
+    private static function normalise_grade(float $grade, float $minimum, float $maximum): float {
+        if ($maximum <= $minimum) {
+            return 0.0;
+        }
+        return max(0.0, min(100.0, (($grade - $minimum) / ($maximum - $minimum)) * 100));
+    }
+
+    /** Returns the fixed distribution bucket for a percentage. */
+    private static function grade_distribution_bucket(float $percent): int {
+        if ($percent < 60) {
+            return 0;
+        }
+        if ($percent < 70) {
+            return 1;
+        }
+        if ($percent < 80) {
+            return 2;
+        }
+        if ($percent < 90) {
+            return 3;
+        }
+        return 4;
     }
 
     /**
