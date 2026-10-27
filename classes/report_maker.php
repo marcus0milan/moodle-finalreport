@@ -626,8 +626,15 @@ class report_maker {
 
     /** Detects conventional frequency/attendance category names. */
     private static function is_frequency_grade_name(string $label): bool {
-        $normalised = mb_strtolower($label, 'UTF-8');
-        $normalised = \core_text::remove_diacritics($normalised);
+        $normalised = mb_strtolower(trim($label), 'UTF-8');
+        $normalised = strtr($normalised, [
+            'á' => 'a', 'à' => 'a', 'ã' => 'a', 'â' => 'a',
+            'é' => 'e', 'è' => 'e', 'ê' => 'e',
+            'í' => 'i', 'ì' => 'i', 'î' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'õ' => 'o', 'ô' => 'o',
+            'ú' => 'u', 'ù' => 'u', 'û' => 'u',
+            'ç' => 'c',
+        ]);
         return preg_match('/frequ|presenc|attendance|presence|assiduid/', $normalised) === 1;
     }
 
