@@ -274,7 +274,7 @@ class renderer extends \plugin_renderer_base {
                     get_string('gradedparticipants', 'report_finalreport'),
                     $gradeseries['distribution']
                 );
-                $this->apply_theme_colour($series);
+                $this->apply_theme_palette($series, count($gradeseries['distribution']));
                 $chart->add_series($series);
                 $charts[] = $this->chart_container($this->output->render($chart));
             }
@@ -350,7 +350,7 @@ class renderer extends \plugin_renderer_base {
             get_string('interactions', 'report_finalreport'),
             array_values($interactions)
         );
-        $this->apply_theme_colour($series);
+        $this->apply_theme_palette($series, count($interactions), true);
         $chart->add_series($series);
 
         return $this->output->render($chart);
@@ -376,6 +376,7 @@ class renderer extends \plugin_renderer_base {
             (int)$engagement['levels']['medium'],
             (int)$engagement['levels']['high'],
         ]);
+        $this->apply_theme_palette($series, 3);
         $chart->add_series($series);
 
         return $this->output->render($chart);
@@ -397,19 +398,71 @@ class renderer extends \plugin_renderer_base {
     }
 
     /**
-     * Applies the primary colour configured by the active Moodle theme.
-     *
-     * If the theme does not expose a hexadecimal primary colour, Moodle's own
-     * chart colour set is left in control rather than introducing a plugin colour.
+     * Applies theme-derived shades to the values in a chart series.
      *
      * @param \core\chart_series $series Chart series to colour.
+     * @param int $count Number of values in the series.
+     * @param bool $reverse Whether the first value should receive the primary colour.
      * @return void
      */
-    private function apply_theme_colour(\core\chart_series $series): void {
+    private function apply_theme_palette(\core\chart_series $series, int $count, bool $reverse = false): void {
         $colour = $this->theme_primary_colour();
-        if ($colour !== null) {
-            $series->set_color($colour);
+        if ($colour === null || $count < 1) {
+            return;
         }
+
+        $rgb = $this->hex_to_rgb($colour);
+        $luminance = ($rgb[0] * 0.299) + ($rgb[1] * 0.587) + ($rgb[2] * 0.114);
+        $target = $luminance >= 140 ? [0, 0, 0] : [255, 255, 255];
+        $palette = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $position = $count === 1 ? 0 : ($count - 1 - $index) / ($count - 1);
+            $strength = $position * 0.45;
+            $palette[] = $this->mix_colours($rgb, $target, $strength);
+        }
+
+        if ($reverse) {
+            $palette = array_reverse($palette);
+        }
+
+        $series->set_colors($palette);
+    }
+
+    /**
+     * Mixes two RGB colours and returns a CSS hexadecimal colour.
+     *
+     * @param int[] $first First RGB colour.
+     * @param int[] $second Second RGB colour.
+     * @param float $amount Proportion of the second colour.
+     * @return string
+     */
+    private function mix_colours(array $first, array $second, float $amount): string {
+        $channels = [];
+        foreach ($first as $index => $channel) {
+            $channels[] = (int)round($channel + (($second[$index] - $channel) * $amount));
+        }
+
+        return sprintf('#%02x%02x%02x', $channels[0], $channels[1], $channels[2]);
+    }
+
+    /**
+     * Converts a hexadecimal CSS colour to RGB channels.
+     *
+     * @param string $colour Hexadecimal colour.
+     * @return int[]
+     */
+    private function hex_to_rgb(string $colour): array {
+        $hex = ltrim($colour, '#');
+        if (strlen($hex) === 3) {
+            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+        }
+
+        return [
+            hexdec(substr($hex, 0, 2)),
+            hexdec(substr($hex, 2, 2)),
+            hexdec(substr($hex, 4, 2)),
+        ];
     }
 
     /**
@@ -443,7 +496,11 @@ class renderer extends \plugin_renderer_base {
         foreach ($candidates as $candidate) {
             $colour = trim((string)$candidate);
             if (preg_match('/^#?([a-f0-9]{3}|[a-f0-9]{6})$/i', $colour)) {
-                return '#' . ltrim($colour, '#');
+                $hex = ltrim($colour, '#');
+                if (strlen($hex) === 3) {
+                    $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+                }
+                return '#' . strtolower($hex);
             }
         }
 
