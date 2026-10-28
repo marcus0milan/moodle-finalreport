@@ -303,11 +303,7 @@ class renderer extends \plugin_renderer_base {
     private function completion_chart(?float $rate): string {
         $progress = $rate === null ? 0 : max(0, min(100, $rate));
         $sweep = $progress / 2;
-        $ratio = $progress / 100;
-        $red = (int)round(220 + (25 - 220) * $ratio);
-        $green = (int)round(53 + (135 - 53) * $ratio);
-        $blue = (int)round(69 + (84 - 69) * $ratio);
-        $colour = sprintf('#%02x%02x%02x', $red, $green, $blue);
+        $colour = $this->theme_primary_colour() ?? '#286744';
         $value = $this->percentage($rate);
         $title = get_string('completionoverview', 'report_finalreport');
         $donut = \html_writer::tag('span', $value, [

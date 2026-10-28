@@ -360,8 +360,8 @@
         from -90deg,
         var(--completion-color) 0%,
         var(--completion-color) var(--completion-sweep),
-        var(--finalreport-border) var(--completion-sweep),
-        var(--finalreport-border) 50%,
+        color-mix(in srgb, var(--finalreport-border) 30%, var(--finalreport-surface)) var(--completion-sweep),
+        color-mix(in srgb, var(--finalreport-border) 30%, var(--finalreport-surface)) 50%,
         transparent 50%,
         transparent 100%
     );
@@ -381,13 +381,13 @@
 
 .report-finalreport__completion-value {
     color: var(--completion-color);
-    font-size: 1.8rem;
+    font-size: 1.6rem;
     font-weight: 700;
     left: 50%;
     position: absolute;
     transform: translateX(-50%);
     white-space: nowrap;
-    bottom: 8%;
+    bottom: 18%;
     z-index: 1;
 }
 
