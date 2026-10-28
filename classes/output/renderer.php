@@ -302,6 +302,7 @@ class renderer extends \plugin_renderer_base {
      */
     private function completion_chart(?float $rate): string {
         $progress = $rate === null ? 0 : max(0, min(100, $rate));
+        $sweep = $progress / 2;
         $ratio = $progress / 100;
         $red = (int)round(220 + (25 - 220) * $ratio);
         $green = (int)round(53 + (135 - 53) * $ratio);
@@ -315,7 +316,8 @@ class renderer extends \plugin_renderer_base {
         $donut = \html_writer::div($donut, 'report-finalreport__completion-donut', [
             'aria-label' => $title . ': ' . $value,
             'role' => 'img',
-            'style' => '--completion-rate: ' . $progress . '%; --completion-color: ' . $colour . ';',
+            'style' => '--completion-sweep: ' . $sweep . '%; ' .
+                '--completion-color: ' . $colour . ';',
         ]);
         $html = \html_writer::tag('h3', $title, ['class' => 'report-finalreport__chart-title']) . $donut;
 
