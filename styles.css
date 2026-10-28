@@ -340,6 +340,36 @@
     text-transform: uppercase;
 }
 
+.report-finalreport__completion-donut {
+    align-items: center;
+    aspect-ratio: 1;
+    background: conic-gradient(
+        from -90deg,
+        var(--completion-color) 0%,
+        var(--completion-color) var(--completion-rate),
+        var(--finalreport-border) var(--completion-rate),
+        var(--finalreport-border) 100%
+    );
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    margin: .25rem auto 0;
+    width: min(15rem, 70vw);
+}
+
+.report-finalreport__completion-value {
+    align-items: center;
+    aspect-ratio: 1;
+    background: var(--finalreport-surface);
+    border-radius: 50%;
+    color: var(--completion-color);
+    display: flex;
+    font-size: 1.8rem;
+    font-weight: 700;
+    justify-content: center;
+    width: 76%;
+}
+
 /* ---------- Sections and tables ---------- */
 
 .report-finalreport__section-title {

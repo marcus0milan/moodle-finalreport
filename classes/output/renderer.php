@@ -250,21 +250,7 @@ class renderer extends \plugin_renderer_base {
     private function charts(array $data): string {
         $charts = [];
         if ($data['completion']['configured']) {
-            $chart = new \core\chart_pie();
-            $chart->set_doughnut(true);
-            $chart->set_title(get_string('completionoverview', 'report_finalreport'));
-            $chart->set_legend_options(['display' => true]);
-            $chart->set_labels([
-                get_string('completed', 'report_finalreport'),
-                get_string('notcompleted', 'report_finalreport'),
-            ]);
-            $series = new \core\chart_series('', [
-                $data['completion']['completed'],
-                max(0, $data['participants'] - $data['completion']['completed']),
-            ]);
-            $this->apply_theme_colour($series);
-            $chart->add_series($series);
-            $charts[] = $this->chart_container($this->output->render($chart));
+            $charts[] = $this->completion_chart($data['completion']['rate']);
         }
 
         if (!empty($data['grade']['available']) && !empty($data['grade']['series'])) {
@@ -306,6 +292,34 @@ class renderer extends \plugin_renderer_base {
             return '';
         }
         return \html_writer::div(implode('', $charts), 'report-finalreport__charts');
+    }
+
+    /**
+     * Renders course completion as a percentage donut.
+     *
+     * @param float|null $rate Completion percentage.
+     * @return string Chart HTML.
+     */
+    private function completion_chart(?float $rate): string {
+        $progress = $rate === null ? 0 : max(0, min(100, $rate));
+        $ratio = $progress / 100;
+        $red = (int)round(220 + (25 - 220) * $ratio);
+        $green = (int)round(53 + (135 - 53) * $ratio);
+        $blue = (int)round(69 + (84 - 69) * $ratio);
+        $colour = sprintf('#%02x%02x%02x', $red, $green, $blue);
+        $value = $this->percentage($rate);
+        $title = get_string('completionoverview', 'report_finalreport');
+        $donut = \html_writer::tag('span', $value, [
+            'class' => 'report-finalreport__completion-value',
+        ]);
+        $donut = \html_writer::div($donut, 'report-finalreport__completion-donut', [
+            'aria-label' => $title . ': ' . $value,
+            'role' => 'img',
+            'style' => '--completion-rate: ' . $progress . '%; --completion-color: ' . $colour . ';',
+        ]);
+        $html = \html_writer::tag('h3', $title, ['class' => 'report-finalreport__chart-title']) . $donut;
+
+        return $this->chart_container($html);
     }
 
     /**
