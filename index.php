@@ -29,7 +29,6 @@ if (!$type && $filterrequested) {
     }
 }
 
-
 $course = get_course($courseid);
 $context = context_course::instance($course->id);
 
