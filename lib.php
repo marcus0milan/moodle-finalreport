@@ -14,6 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle. If not, see <https://www.gnu.org/licenses/>.
 
+defined('MOODLE_INTERNAL') || die();
+
+/**
+ * Adds the final report to the course reports navigation.
+ *
+ * @param navigation_node $navigation The course reports navigation node.
+ * @param stdClass $course The course.
+ * @param context $context The course context.
+ * @return void
+ */
 function report_finalreport_extend_navigation_course($navigation, $course, $context) {
     if (has_capability('report/finalreport:view', $context)) {
         $url = new moodle_url('/report/finalreport/index.php', ['id' => $course->id]);

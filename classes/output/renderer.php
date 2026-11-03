@@ -62,7 +62,11 @@ class renderer extends \plugin_renderer_base {
         $html .= \html_writer::start_div('report-finalreport__header');
         $html .= \html_writer::div(
             \html_writer::tag('h2', $coursefullname, ['class' => 'report-finalreport__title']) .
-            \html_writer::div(get_string('reportdescription', 'report_finalreport'), 'report-finalreport__description'),
+            \html_writer::div(get_string('reportdescription', 'report_finalreport'), 'report-finalreport__description') .
+            \html_writer::div(
+                get_string('generatedat', 'report_finalreport', userdate($data['generatedat'])),
+                'report-finalreport__generated'
+            ),
             'report-finalreport__title-area'
         );
         $html .= \html_writer::start_div('report-finalreport__actions');
@@ -84,35 +88,56 @@ class renderer extends \plugin_renderer_base {
         }
         $html .= \html_writer::end_div();
         $html .= \html_writer::end_div();
-        $html .= \html_writer::div(
-            get_string('generatedat', 'report_finalreport', userdate($data['generatedat'])),
-            'report-finalreport__generated'
-        );
+
+        $html .= $this->notices($data);
         $html .= $this->activity_type_filter($data);
-
-        if (!$data['completion']['configured']) {
-            $html .= \html_writer::div(
-                get_string('completionnotconfigured', 'report_finalreport'),
-                'alert alert-warning report-finalreport__notice',
-                ['role' => 'status']
-            );
-        }
-        if (!$data['engagement']['available']) {
-            $html .= \html_writer::div(
-                get_string('lognotavailable', 'report_finalreport'),
-                'alert alert-info report-finalreport__notice',
-                ['role' => 'status']
-            );
-        }
-
         $html .= $this->kpis($data);
         $html .= \html_writer::start_div('report-finalreport__chart-view');
         $html .= $this->charts($data);
         $html .= \html_writer::end_div();
         $html .= \html_writer::start_div('report-finalreport__table-view');
-        $html .= $this->activity_table($data['activities']);
+        $html .= $this->activity_table($data['activities'], (bool)$data['engagement']['available']);
         $html .= \html_writer::end_div();
+        if ($data['engagement']['available']) {
+            $html .= \html_writer::div(get_string('lognote', 'report_finalreport'), 'report-finalreport__footnote');
+        }
         $html .= \html_writer::end_div();
+
+        return $html;
+    }
+
+    /**
+     * Renders the notices that explain why some figures are missing or limited.
+     *
+     * @param array $data Report data.
+     * @return string HTML.
+     */
+    private function notices(array $data): string {
+        $notices = [];
+        if (!$data['completion']['configured']) {
+            $notices[] = ['alert-warning', 'completionnotconfigured'];
+        }
+        if (!$data['engagement']['available']) {
+            $notices[] = ['alert-info', 'lognotavailable'];
+        }
+        if (!empty($data['gradesneedupdate'])) {
+            $notices[] = ['alert-warning', 'gradesneedupdate'];
+        }
+        if (!empty($data['emptyfilter'])) {
+            $notices[] = ['alert-warning', 'emptyfilter'];
+        }
+        if (!empty($data['restrictedtogroups'])) {
+            $notices[] = ['alert-info', 'restrictedtogroups'];
+        }
+
+        $html = '';
+        foreach ($notices as [$class, $string]) {
+            $html .= \html_writer::div(
+                get_string($string, 'report_finalreport'),
+                'alert ' . $class . ' report-finalreport__notice',
+                ['role' => 'status']
+            );
+        }
 
         return $html;
     }
@@ -130,6 +155,8 @@ class renderer extends \plugin_renderer_base {
 
         $formurl = new \moodle_url('/report/finalreport/index.php', ['id' => $data['course']->id]);
         $formaction = new \moodle_url('/report/finalreport/index.php');
+        $selectedcount = $data['filteractive'] ? count($data['selectedtypes']) : count($data['activitytypes']);
+
         $html = \html_writer::start_tag('form', [
             'action' => $formaction->out(false),
             'class' => 'report-finalreport__filter',
@@ -140,11 +167,25 @@ class renderer extends \plugin_renderer_base {
             'type' => 'hidden',
             'value' => $data['course']->id,
         ]);
+        $detailsattributes = ['class' => 'report-finalreport__filter-details'];
+        if ($data['filteractive']) {
+            $detailsattributes['open'] = 'open';
+        }
+        $html .= \html_writer::start_tag('details', $detailsattributes);
+        $html .= \html_writer::tag(
+            'summary',
+            \html_writer::span(get_string('filteractivitytypes', 'report_finalreport')) .
+                \html_writer::span(
+                    $selectedcount . '/' . count($data['activitytypes']),
+                    'report-finalreport__filter-count'
+                ),
+            ['class' => 'report-finalreport__filter-title']
+        );
         $html .= \html_writer::start_tag('fieldset', ['class' => 'report-finalreport__filter-fieldset']);
         $html .= \html_writer::tag(
             'legend',
             get_string('filteractivitytypes', 'report_finalreport'),
-            ['class' => 'report-finalreport__filter-title']
+            ['class' => 'visually-hidden sr-only']
         );
         $html .= \html_writer::div(
             get_string('filteractivitytypeshelp', 'report_finalreport'),
@@ -185,6 +226,7 @@ class renderer extends \plugin_renderer_base {
         }
         $html .= \html_writer::end_div();
         $html .= \html_writer::end_tag('fieldset');
+        $html .= \html_writer::end_tag('details');
         $html .= \html_writer::end_tag('form');
 
         return $html;
@@ -197,13 +239,16 @@ class renderer extends \plugin_renderer_base {
      * @return string HTML.
      */
     private function kpis(array $data): string {
+        $unavailable = get_string('notavailable', 'report_finalreport');
+        $logs = $data['engagement'];
+
         $completionrate = $this->percentage($data['completion']['rate']);
         $completiondetail = $data['completion']['configured']
             ? get_string('completedparticipants', 'report_finalreport') . ': ' .
                 $data['completion']['completed'] . '/' . $data['participants']
             : get_string('completiondisabled', 'report_finalreport');
 
-        $gradevalue = get_string('notavailable', 'report_finalreport');
+        $gradevalue = $unavailable;
         $gradedetail = get_string('nogrades', 'report_finalreport');
         if ($data['grade']['available']) {
             $gradevalue = format_float($data['grade']['average'], 2) . ' / ' .
@@ -213,24 +258,34 @@ class renderer extends \plugin_renderer_base {
                 get_string('gradedparticipants', 'report_finalreport') . ': ' . $data['grade']['count'];
         }
 
+        $interactions = $unavailable;
+        $interactionsdetail = get_string('lognotavailableshort', 'report_finalreport');
+        if ($logs['available']) {
+            $interactions = format_float($logs['interactions'], 0);
+            $interactionsdetail = get_string('views', 'report_finalreport') . ': ' .
+                format_float($logs['views'], 0) . ' · ' .
+                get_string('activeparticipants', 'report_finalreport') . ': ' .
+                format_float($logs['activeparticipants'], 0);
+        }
+
         $cards = [
-            [$data['participants'], get_string('participants', 'report_finalreport'), ''],
-            [$completionrate, get_string('coursecompletion', 'report_finalreport'), $completiondetail],
-            [$gradevalue, get_string('averagegrade', 'report_finalreport'), $gradedetail],
+            [(string)$data['participants'], get_string('participants', 'report_finalreport'), '', false],
             [
-                format_float($data['engagement']['interactions'], 0),
-                get_string('interactions', 'report_finalreport'),
-                get_string('views', 'report_finalreport') . ': ' . format_float($data['engagement']['views'], 0) .
-                    ' · ' . get_string('activeparticipants', 'report_finalreport') . ': ' .
-                    format_float($data['engagement']['activeparticipants'], 0),
+                $completionrate,
+                get_string('coursecompletion', 'report_finalreport'),
+                $completiondetail,
+                $data['completion']['rate'] === null,
             ],
+            [$gradevalue, get_string('averagegrade', 'report_finalreport'), $gradedetail, !$data['grade']['available']],
+            [$interactions, get_string('interactions', 'report_finalreport'), $interactionsdetail, !$logs['available']],
         ];
 
         $html = \html_writer::start_div('report-finalreport__kpis');
-        foreach ($cards as [$value, $label, $detail]) {
-            $html .= \html_writer::start_div('report-finalreport__kpi');
-            $html .= \html_writer::div($value, 'report-finalreport__kpi-value');
+        foreach ($cards as [$value, $label, $detail, $muted]) {
+            $class = 'report-finalreport__kpi' . ($muted ? ' report-finalreport__kpi--muted' : '');
+            $html .= \html_writer::start_div($class);
             $html .= \html_writer::div($label, 'report-finalreport__kpi-label');
+            $html .= \html_writer::div($value, 'report-finalreport__kpi-value');
             if ($detail !== '') {
                 $html .= \html_writer::div($detail, 'report-finalreport__kpi-detail');
             }
@@ -248,20 +303,25 @@ class renderer extends \plugin_renderer_base {
      * @return string HTML.
      */
     private function charts(array $data): string {
+        $coursecontext = \context_course::instance($data['course']->id);
         $charts = [];
         if ($data['completion']['configured']) {
-            $charts[] = $this->completion_chart($data['completion']['rate']);
+            $charts[] = $this->completion_chart(
+                $data['completion']['rate'],
+                (int)$data['completion']['completed'],
+                (int)$data['participants']
+            );
         }
 
         if (!empty($data['grade']['available']) && !empty($data['grade']['series'])) {
             foreach ($data['grade']['series'] as $gradeseries) {
+                $label = strip_tags(format_string($gradeseries['label'], true, ['context' => $coursecontext]));
+                $limit = $gradeseries['threshold'] === null ? null : format_float($gradeseries['threshold'], 0);
                 $chart = new \core\chart_pie();
                 $chart->set_doughnut(true);
-                $charttitle = $gradeseries['label'];
-                if (!empty($gradeseries['mandatorythreshold'])) {
-                    $charttitle .= ' — ' . get_string('mandatoryfrequency', 'report_finalreport');
-                }
-                $chart->set_title($charttitle);
+                $chart->set_title($limit === null
+                    ? $label
+                    : $label . ' — ' . get_string('frequencyreference', 'report_finalreport', $limit));
                 $chart->set_legend_options(['display' => true]);
                 $chart->set_labels([
                     get_string('range0_59', 'report_finalreport'),
@@ -276,16 +336,34 @@ class renderer extends \plugin_renderer_base {
                 );
                 $this->apply_theme_palette($series, count($gradeseries['distribution']));
                 $chart->add_series($series);
-                $charts[] = $this->chart_container($this->output->render($chart));
+
+                $html = $this->output->render($chart);
+                if ($limit !== null) {
+                    $html .= \html_writer::div(
+                        get_string('belowfrequency', 'report_finalreport', (object)[
+                            'count' => (int)$gradeseries['belowthreshold'],
+                            'total' => (int)$gradeseries['count'],
+                            'limit' => $limit,
+                        ]),
+                        'report-finalreport__chart-note'
+                    );
+                }
+                $charts[] = $this->chart_container($html);
             }
         }
 
         if ($data['engagement']['available'] && $data['activities']) {
-            $charts[] = $this->chart_container($this->activity_type_chart($data['activities']));
+            $typechart = $this->activity_type_chart($data['activities']);
+            if ($typechart !== '') {
+                $charts[] = $this->chart_container($typechart);
+            }
         }
 
-        if ($data['engagement']['available']) {
-            $charts[] = $this->chart_container($this->engagement_chart($data['engagement']));
+        if ($data['engagement']['available'] && $data['participants'] > 0) {
+            $charts[] = $this->chart_container(
+                $this->engagement_chart($data['engagement']) .
+                \html_writer::div(get_string('engagementcriteria', 'report_finalreport'), 'report-finalreport__chart-note')
+            );
         }
 
         if (!$charts) {
@@ -295,36 +373,41 @@ class renderer extends \plugin_renderer_base {
     }
 
     /**
-     * Renders course completion as a percentage donut.
+     * Renders course completion as a percentage ring.
      *
      * @param float|null $rate Completion percentage.
+     * @param int $completed Participants who completed the course.
+     * @param int $total Tracked participants.
      * @return string Chart HTML.
      */
-    private function completion_chart(?float $rate): string {
+    private function completion_chart(?float $rate, int $completed, int $total): string {
         $progress = $rate === null ? 0 : max(0, min(100, $rate));
-        $sweep = $progress / 2;
         $colour = $this->theme_primary_colour() ?? '#286744';
         $value = $this->percentage($rate);
         $title = get_string('completionoverview', 'report_finalreport');
-        $donut = \html_writer::tag('span', $value, [
+        $ring = \html_writer::tag('span', $value, [
             'class' => 'report-finalreport__completion-value',
         ]);
-        $donut = \html_writer::div($donut, 'report-finalreport__completion-donut', [
+        $ring = \html_writer::div($ring, 'report-finalreport__completion-donut', [
             'aria-label' => $title . ': ' . $value,
             'role' => 'img',
-            'style' => '--completion-sweep: ' . $sweep . '%; ' .
+            'style' => '--completion-sweep: ' . round($progress, 2) . '%; ' .
                 '--completion-color: ' . $colour . ';',
         ]);
-        $html = \html_writer::tag('h3', $title, ['class' => 'report-finalreport__chart-title']) . $donut;
+        $note = \html_writer::div(
+            get_string('completedparticipants', 'report_finalreport') . ': ' . $completed . '/' . $total,
+            'report-finalreport__chart-note'
+        );
+        $html = \html_writer::tag('h3', $title, ['class' => 'report-finalreport__chart-title']) . $ring . $note;
 
         return $this->chart_container($html);
     }
 
     /**
-        * Renders a pie chart for interactions grouped by activity type.
+     * Renders a doughnut chart for interactions grouped by activity type.
      *
-     * @param array<int, array> $activities Activity rows, ordered by interactions.
-     * @return string Chart HTML.
+     * @param array<int, array> $activities Activity rows.
+     * @return string Chart HTML, or an empty string when there are no interactions.
      */
     private function activity_type_chart(array $activities): string {
         $interactions = [];
@@ -334,6 +417,10 @@ class renderer extends \plugin_renderer_base {
                 $interactions[$type] = 0;
             }
             $interactions[$type] += (int)$activity['interactions'];
+        }
+        $interactions = array_filter($interactions);
+        if (!$interactions) {
+            return '';
         }
         arsort($interactions, SORT_NUMERIC);
 
@@ -353,7 +440,7 @@ class renderer extends \plugin_renderer_base {
     }
 
     /**
-     * Renders the relative engagement levels calculated from course logs.
+     * Renders the engagement levels calculated from course logs.
      *
      * @param array $engagement Engagement summary.
      * @return string Chart HTML.
@@ -382,15 +469,10 @@ class renderer extends \plugin_renderer_base {
      * Wraps one chart in a layout cell.
      *
      * @param string $chart Rendered chart.
-     * @param bool $wide Whether the chart needs the full dashboard width.
      * @return string HTML.
      */
-    private function chart_container(string $chart, bool $wide = false): string {
-        $classes = 'report-finalreport__chart';
-        if ($wide) {
-            $classes .= ' report-finalreport__chart--wide';
-        }
-        return \html_writer::div($chart, $classes);
+    private function chart_container(string $chart): string {
+        return \html_writer::div($chart, 'report-finalreport__chart');
     }
 
     /**
@@ -507,9 +589,10 @@ class renderer extends \plugin_renderer_base {
      * Renders the complete activity-level table.
      *
      * @param array $activities Activity rows.
+     * @param bool $logsavailable Whether log-based columns have real values.
      * @return string HTML.
      */
-    private function activity_table(array $activities): string {
+    private function activity_table(array $activities, bool $logsavailable): string {
         $html = \html_writer::tag('h3', get_string('activityanalysis', 'report_finalreport'), [
             'class' => 'report-finalreport__section-title',
         ]);
@@ -528,12 +611,16 @@ class renderer extends \plugin_renderer_base {
             get_string('uniqueviews', 'report_finalreport'),
             get_string('lastinteraction', 'report_finalreport'),
         ];
+        $table->align = ['left', 'left', 'left', 'right', 'right', 'right', 'left'];
         $table->data = [];
 
+        $dash = \html_writer::span('–', 'text-muted', [
+            'title' => get_string('notavailable', 'report_finalreport'),
+        ]);
         foreach ($activities as $activity) {
             $completion = $activity['completiontracked']
-                ? $this->percentage($activity['completionrate'])
-                : get_string('notavailable', 'report_finalreport');
+                ? $this->rate_bar($activity['completionrate'])
+                : $dash;
             $lastinteraction = $activity['lastinteraction']
                 ? userdate($activity['lastinteraction'])
                 : get_string('never', 'report_finalreport');
@@ -541,14 +628,36 @@ class renderer extends \plugin_renderer_base {
                 format_string($activity['name']),
                 s($activity['modulelabel']),
                 $completion,
-                format_float($activity['views'], 0),
-                format_float($activity['interactions'], 0),
-                format_float($activity['uniqueusers'], 0),
-                $lastinteraction,
+                $logsavailable ? format_float($activity['views'], 0) : $dash,
+                $logsavailable ? format_float($activity['interactions'], 0) : $dash,
+                $logsavailable ? format_float($activity['uniqueusers'], 0) : $dash,
+                $logsavailable ? $lastinteraction : $dash,
             ];
         }
 
         return $html . \html_writer::div(\html_writer::table($table), 'table-responsive');
+    }
+
+    /**
+     * Renders a small horizontal bar with a percentage label.
+     *
+     * @param float|null $value Percentage.
+     * @return string HTML.
+     */
+    private function rate_bar(?float $value): string {
+        if ($value === null) {
+            return \html_writer::span('–', 'text-muted', [
+                'title' => get_string('notavailable', 'report_finalreport'),
+            ]);
+        }
+        $width = round(max(0, min(100, $value)), 1);
+        $bar = \html_writer::span('', 'report-finalreport__bar-fill', ['style' => '--rate: ' . $width . '%']);
+
+        return \html_writer::div(
+            \html_writer::span($bar, 'report-finalreport__bar') .
+            \html_writer::span($this->percentage($value), 'report-finalreport__bar-label'),
+            'report-finalreport__rate'
+        );
     }
 
     /**

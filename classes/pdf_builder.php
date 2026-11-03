@@ -21,6 +21,8 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * Creates the PDF export with Moodle's bundled TCPDF wrapper.
  *
+ * The PDF shows the same figures as the screen, including the unavailable states.
+ *
  * @package    report_finalreport
  * @copyright  2026
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -54,7 +56,9 @@ class pdf_builder {
         $pdf->AddPage();
         self::activities($pdf, $data);
 
-        $filename = clean_filename('relatorio-final-' . $data['course']->shortname . '-' . date('Ymd-His') . '.pdf');
+        $filename = clean_filename(
+            get_string('pdffilename', 'report_finalreport') . '-' . $data['course']->shortname . '-' . date('Ymd-His') . '.pdf'
+        );
         $pdf->Output($filename, 'D');
         exit;
     }
@@ -75,6 +79,13 @@ class pdf_builder {
         $pdf->SetFont('freesans', '', 8);
         $pdf->Cell(0, 5, get_string('pdfsubtitle', 'report_finalreport') . ' · ' .
             get_string('generatedat', 'report_finalreport', userdate($data['generatedat'])), 0, 1);
+        if ($data['filteractive']) {
+            $labels = [];
+            foreach ($data['selectedtypes'] as $type) {
+                $labels[] = $data['activitytypes'][$type] ?? $type;
+            }
+            $pdf->Cell(0, 5, get_string('pdffilterapplied', 'report_finalreport', implode(', ', $labels)), 0, 1);
+        }
         $pdf->SetTextColor(0, 0, 0);
         $pdf->Ln(3);
     }
@@ -87,12 +98,27 @@ class pdf_builder {
      * @return void
      */
     private static function kpis(\pdf $pdf, array $data): void {
+        $unavailable = get_string('notavailable', 'report_finalreport');
+        $logs = $data['engagement'];
+
         $completion = $data['completion']['configured']
             ? self::percentage($data['completion']['rate'])
-            : get_string('notavailable', 'report_finalreport');
+            : $unavailable;
+        $completiondetail = $data['completion']['configured']
+            ? get_string('completedparticipants', 'report_finalreport') . ': ' .
+                $data['completion']['completed'] . '/' . $data['participants']
+            : get_string('completiondisabled', 'report_finalreport');
         $grade = $data['grade']['available']
             ? format_float($data['grade']['average'], 2) . ' / ' . format_float($data['grade']['maximum'], 2)
-            : get_string('notavailable', 'report_finalreport');
+            : $unavailable;
+        $gradedetail = $data['grade']['available']
+            ? get_string('gradedparticipants', 'report_finalreport') . ': ' . $data['grade']['count']
+            : get_string('nogrades', 'report_finalreport');
+        $interactions = $logs['available'] ? format_float($logs['interactions'], 0) : $unavailable;
+        $interactionsdetail = $logs['available']
+            ? get_string('views', 'report_finalreport') . ': ' . format_float($logs['views'], 0)
+            : get_string('lognotavailableshort', 'report_finalreport');
+
         $html = '<table cellpadding="5" cellspacing="0" border="1">';
         $html .= '<tr style="background-color:#eaf3fb;font-weight:bold;">';
         $html .= '<td width="25%">' . s(get_string('participants', 'report_finalreport')) . '</td>';
@@ -101,13 +127,9 @@ class pdf_builder {
         $html .= '<td width="25%">' . s(get_string('interactions', 'report_finalreport')) . '</td></tr>';
         $html .= '<tr>';
         $html .= '<td>' . s((string)$data['participants']) . '</td>';
-        $html .= '<td>' . s($completion) . '<br/><small>' . s(get_string('completedparticipants', 'report_finalreport')) . ': ' .
-            s($data['completion']['completed'] . '/' . $data['participants']) . '</small></td>';
-        $html .= '<td>' . s($grade) . '<br/><small>' . s(get_string('gradedparticipants', 'report_finalreport')) . ': ' .
-            s((string)$data['grade']['count']) . '</small></td>';
-        $html .= '<td>' . s(format_float($data['engagement']['interactions'], 0)) . '<br/><small>' .
-            s(get_string('views', 'report_finalreport')) . ': ' .
-            s(format_float($data['engagement']['views'], 0)) . '</small></td>';
+        $html .= '<td>' . s($completion) . '<br/><small>' . s($completiondetail) . '</small></td>';
+        $html .= '<td>' . s($grade) . '<br/><small>' . s($gradedetail) . '</small></td>';
+        $html .= '<td>' . s($interactions) . '<br/><small>' . s($interactionsdetail) . '</small></td>';
         $html .= '</tr></table>';
 
         $pdf->SetFont('freesans', '', 9);
@@ -125,19 +147,42 @@ class pdf_builder {
     private static function visual_indicators(\pdf $pdf, array $data): void {
         $pdf->SetFont('freesans', 'B', 12);
         $pdf->Cell(0, 7, get_string('completionoverview', 'report_finalreport'), 0, 1);
-        $completion = $data['completion']['configured'] ? $data['completion']['rate'] : 0.0;
-        self::bar($pdf, get_string('coursecompletion', 'report_finalreport'), $completion, [15, 108, 191]);
-        self::bar(
-            $pdf,
-            get_string('activeparticipants', 'report_finalreport'),
-            self::ratio($data['engagement']['activeparticipants'], $data['participants']),
-            [31, 137, 101]
-        );
-        if ($data['grade']['available']) {
-            self::bar($pdf, get_string('gradepercent', 'report_finalreport'), $data['grade']['averagepercent'], [15, 108, 191]);
+        if ($data['completion']['configured']) {
+            self::bar($pdf, get_string('coursecompletion', 'report_finalreport'), $data['completion']['rate'], [15, 108, 191]);
+        } else {
+            self::bar($pdf, get_string('coursecompletion', 'report_finalreport'), null, [15, 108, 191], '-');
+        }
+        if ($data['engagement']['available']) {
+            self::bar(
+                $pdf,
+                get_string('activeparticipants', 'report_finalreport'),
+                self::ratio((int)$data['engagement']['activeparticipants'], (int)$data['participants']),
+                [31, 137, 101]
+            );
         }
 
         if ($data['grade']['available']) {
+            $pdf->Ln(3);
+            $pdf->SetFont('freesans', 'B', 12);
+            $pdf->Cell(0, 7, get_string('gradesbycategory', 'report_finalreport'), 0, 1);
+            foreach ($data['grade']['series'] as $series) {
+                $suffix = self::percentage($series['averagepercent']) . ' (' . $series['count'] . ')';
+                if ($series['threshold'] !== null) {
+                    $suffix .= ' · ' . get_string('belowfrequency', 'report_finalreport', (object)[
+                        'count' => (int)$series['belowthreshold'],
+                        'total' => (int)$series['count'],
+                        'limit' => format_float($series['threshold'], 0),
+                    ]);
+                }
+                self::bar(
+                    $pdf,
+                    strip_tags(format_string($series['label'])),
+                    $series['averagepercent'],
+                    $series['kind'] === 'frequency' ? [31, 137, 101] : [15, 108, 191],
+                    $suffix
+                );
+            }
+
             $pdf->Ln(3);
             $pdf->SetFont('freesans', 'B', 12);
             $pdf->Cell(0, 7, get_string('gradedistribution', 'report_finalreport'), 0, 1);
@@ -159,11 +204,13 @@ class pdf_builder {
             }
         }
 
-        $pdf->Ln(3);
-        $pdf->SetFont('freesans', '', 8);
-        $pdf->SetTextColor(95, 107, 122);
-        $pdf->MultiCell(0, 5, get_string('pdfnote', 'report_finalreport'));
-        $pdf->SetTextColor(0, 0, 0);
+        if ($data['engagement']['available']) {
+            $pdf->Ln(3);
+            $pdf->SetFont('freesans', '', 8);
+            $pdf->SetTextColor(95, 107, 122);
+            $pdf->MultiCell(0, 5, get_string('lognote', 'report_finalreport'));
+            $pdf->SetTextColor(0, 0, 0);
+        }
     }
 
     /**
@@ -179,7 +226,7 @@ class pdf_builder {
     private static function bar(\pdf $pdf, string $label, ?float $percent, array $colour, ?string $suffix = null): void {
         $percent = max(0, min(100, $percent ?? 0));
         $pdf->SetFont('freesans', '', 9);
-        $pdf->Cell(62, 6, $label, 0, 0);
+        $pdf->Cell(62, 6, $label, 0, 0, 'L', false, '', 1);
         $x = $pdf->GetX();
         $y = $pdf->GetY() + 1;
         $width = 120;
@@ -188,7 +235,7 @@ class pdf_builder {
         $pdf->SetFillColor($colour[0], $colour[1], $colour[2]);
         $pdf->Rect($x, $y, $width * ($percent / 100), 4, 'F');
         $pdf->SetX($x + $width + 4);
-        $pdf->Cell(35, 6, $suffix ?? self::percentage($percent), 0, 1);
+        $pdf->Cell(80, 6, $suffix ?? self::percentage($percent), 0, 1, 'L', false, '', 1);
     }
 
     /**
@@ -207,6 +254,7 @@ class pdf_builder {
             return;
         }
 
+        $logsavailable = (bool)$data['engagement']['available'];
         $html = '<table cellpadding="3" cellspacing="0" border="1">';
         $html .= '<tr style="background-color:#eaf3fb;font-weight:bold;">';
         $headers = [
@@ -226,7 +274,7 @@ class pdf_builder {
         foreach ($data['activities'] as $activity) {
             $completion = $activity['completiontracked']
                 ? self::percentage($activity['completionrate'])
-                : get_string('notavailable', 'report_finalreport');
+                : '-';
             $lastinteraction = $activity['lastinteraction']
                 ? userdate($activity['lastinteraction'])
                 : get_string('never', 'report_finalreport');
@@ -234,10 +282,10 @@ class pdf_builder {
             $html .= '<td>' . s(strip_tags(format_string($activity['name']))) . '</td>';
             $html .= '<td>' . s($activity['modulelabel']) . '</td>';
             $html .= '<td align="right">' . s($completion) . '</td>';
-            $html .= '<td align="right">' . s(format_float($activity['views'], 0)) . '</td>';
-            $html .= '<td align="right">' . s(format_float($activity['interactions'], 0)) . '</td>';
-            $html .= '<td align="right">' . s(format_float($activity['uniqueusers'], 0)) . '</td>';
-            $html .= '<td>' . s($lastinteraction) . '</td>';
+            $html .= '<td align="right">' . s($logsavailable ? format_float($activity['views'], 0) : '-') . '</td>';
+            $html .= '<td align="right">' . s($logsavailable ? format_float($activity['interactions'], 0) : '-') . '</td>';
+            $html .= '<td align="right">' . s($logsavailable ? format_float($activity['uniqueusers'], 0) : '-') . '</td>';
+            $html .= '<td>' . s($logsavailable ? $lastinteraction : '-') . '</td>';
             $html .= '</tr>';
         }
         $html .= '</table>';

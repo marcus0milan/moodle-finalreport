@@ -30,10 +30,12 @@ if (!$type && $filterrequested) {
 }
 
 $course = get_course($courseid);
-$context = context_course::instance($course->id);
-
 require_login($course);
+$context = context_course::instance($course->id);
 require_capability('report/finalreport:view', $context);
+if ($download) {
+    require_capability('report/finalreport:export', $context);
+}
 
 $pageparams = ['id' => $course->id];
 if ($filterrequested) {
@@ -49,11 +51,13 @@ $PAGE->set_heading(format_string($course->fullname, true, ['context' => $context
 $report = \report_finalreport\report_maker::build($course, $filterrequested ? $type : null);
 
 if ($download) {
-    require_capability('report/finalreport:export', $context);
     \report_finalreport\pdf_builder::download($report);
 }
 
-$PAGE->requires->css(new moodle_url('/report/finalreport/styles.css'));
+// Log that the report was viewed, like Moodle's native course reports do.
+\report_finalreport\event\report_viewed::create(['context' => $context])->trigger();
+
+// The plugin's styles.css is loaded automatically by Moodle's theme.
 $renderer = $PAGE->get_renderer('report_finalreport');
 
 echo $OUTPUT->header();

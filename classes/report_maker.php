@@ -26,40 +26,82 @@ defined('MOODLE_INTERNAL') || die();
  * @license    https://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class report_maker {
+    /** Activity modules that only structure the course page and are not analysed. */
+    private const IGNORED_MODULES = ['label', 'subsection'];
+
+    /** Default minimum attendance (percent) used as a reference line in the frequency chart. */
+    private const DEFAULT_FREQUENCY_THRESHOLD = 75;
+
     /**
      * Builds the report data for one course.
      *
      * The same enrolled, completion-tracked audience is used in every KPI. This
      * keeps completion, grades and engagement rates comparable and excludes staff.
+     * When the course uses separate groups, teachers without access to all groups
+     * only see the participants of their own groups.
      *
      * @param \stdClass $course Moodle course record.
      * @param string[]|null $types Module types selected in the filter, or null for all types.
      * @return array Report data ready for either HTML or PDF rendering.
      */
     public static function build(\stdClass $course, ?array $types = null): array {
-        global $CFG;
+        global $CFG, $DB, $USER;
 
         require_once($CFG->libdir . '/completionlib.php');
         require_once($CFG->libdir . '/gradelib.php');
+        require_once($CFG->libdir . '/grouplib.php');
 
         $context = \context_course::instance($course->id);
         $completioninfo = new \completion_info($course);
-        list($enrolledsql, $enrolledparams) = get_enrolled_sql(
+
+        // Respect "separate groups" for people who cannot access all groups.
+        $groupids = 0;
+        $nousers = false;
+        $restrictedtogroups = false;
+        if (groups_get_course_groupmode($course) == SEPARATEGROUPS &&
+                !has_capability('moodle/site:accessallgroups', $context)) {
+            $restrictedtogroups = true;
+            $mygroups = groups_get_all_groups($course->id, $USER->id, 0, 'g.id');
+            if ($mygroups) {
+                $groupids = array_keys($mygroups);
+            } else {
+                $nousers = true;
+            }
+        }
+
+        [$enrolledsql, $enrolledparams] = get_enrolled_sql(
             $context,
             'moodle/course:isincompletionreports',
-            0,
+            $groupids,
             true
+        );
+        if ($nousers) {
+            $enrolledsql = "SELECT eu0.id FROM ({$enrolledsql}) eu0 WHERE 1 = 0";
+        }
+        $trackedparticipants = (int)$DB->count_records_sql(
+            "SELECT COUNT(1) FROM ({$enrolledsql}) eux",
+            $enrolledparams
         );
 
         $allactivities = self::get_activities($course);
         $activitytypes = self::get_activity_types($allactivities);
         $selectedtypes = self::normalise_activity_types($types, $activitytypes);
+
+        // A filter with every box unticked would produce an empty report: fall back to all types.
+        $emptyfilter = false;
+        if ($types !== null && !$selectedtypes) {
+            $emptyfilter = true;
+            $types = null;
+            $selectedtypes = array_keys($activitytypes);
+        }
+
         $activities = $types === null
             ? $allactivities
             : array_filter($allactivities, static function(array $activity) use ($selectedtypes): bool {
                 return in_array($activity['module'], $selectedtypes, true);
             });
-        $trackedparticipants = $completioninfo->get_num_tracked_users();
+
+        $threshold = self::get_frequency_threshold();
         $completion = self::get_course_completion(
             $course,
             $completioninfo,
@@ -86,13 +128,31 @@ class report_maker {
             'generatedat' => time(),
             'participants' => $trackedparticipants,
             'completion' => $completion,
-            'grade' => self::get_grades($course, $enrolledsql, $enrolledparams),
+            'grade' => self::get_grades($course, $enrolledsql, $enrolledparams, $threshold),
             'engagement' => $engagement['summary'],
             'activities' => self::merge_activity_statistics($activities, $engagement['activities']),
             'activitytypes' => $activitytypes,
             'filteractive' => $types !== null,
             'selectedtypes' => $selectedtypes,
+            'emptyfilter' => $emptyfilter,
+            'restrictedtogroups' => $restrictedtogroups,
+            'gradesneedupdate' => $DB->record_exists('grade_items', ['courseid' => $course->id, 'needsupdate' => 1]),
+            'frequencythreshold' => $threshold,
         ];
+    }
+
+    /**
+     * Returns the configured attendance reference (percent), bounded to 1-100.
+     *
+     * @return float
+     */
+    private static function get_frequency_threshold(): float {
+        $value = get_config('report_finalreport', 'frequencythreshold');
+        if ($value === false || $value === null || $value === '') {
+            $value = self::DEFAULT_FREQUENCY_THRESHOLD;
+        }
+
+        return max(1.0, min(100.0, (float)$value));
     }
 
     /**
@@ -145,7 +205,7 @@ class report_maker {
         $modinfo = get_fast_modinfo($course);
 
         foreach ($modinfo->get_cms() as $cm) {
-            if (!empty($cm->deletioninprogress)) {
+            if (!empty($cm->deletioninprogress) || in_array($cm->modname, self::IGNORED_MODULES, true)) {
                 continue;
             }
 
@@ -209,6 +269,8 @@ class report_maker {
     /**
      * Adds native activity-completion counts to each activity.
      *
+     * Only "complete" and "complete (pass)" count as completed; "complete (fail)" does not.
+     *
      * @param array<int, array> $activities Activities keyed by course-module id.
      * @param \completion_info $completioninfo Completion API object.
      * @param string $enrolledsql SQL for completion-tracked, enrolled users.
@@ -236,19 +298,19 @@ class report_maker {
             return;
         }
 
-        list($insql, $inparams) = $DB->get_in_or_equal($trackedids, SQL_PARAMS_NAMED, 'cm');
+        [$insql, $inparams] = $DB->get_in_or_equal($trackedids, SQL_PARAMS_NAMED, 'cm');
+        [$statesql, $stateparams] = $DB->get_in_or_equal(
+            [COMPLETION_COMPLETE, COMPLETION_COMPLETE_PASS],
+            SQL_PARAMS_NAMED,
+            'state'
+        );
         $sql = "SELECT cmc.coursemoduleid AS cmid, COUNT(DISTINCT cmc.userid) AS completed
                   FROM {course_modules_completion} cmc
                   JOIN ({$enrolledsql}) eu ON eu.id = cmc.userid
                  WHERE cmc.coursemoduleid {$insql}
-                   AND cmc.completionstate > :incompletestate
+                   AND cmc.completionstate {$statesql}
               GROUP BY cmc.coursemoduleid";
-        $params = array_merge(
-            $enrolledparams,
-            $inparams,
-            ['incompletestate' => COMPLETION_INCOMPLETE]
-        );
-        $records = $DB->get_records_sql($sql, $params);
+        $records = $DB->get_records_sql($sql, array_merge($enrolledparams, $inparams, $stateparams));
 
         foreach ($trackedids as $cmid) {
             $completed = isset($records[$cmid]) ? (int)$records[$cmid]->completed : 0;
@@ -258,7 +320,25 @@ class report_maker {
     }
 
     /**
+     * Tells whether Moodle's standard log store exists and is enabled.
+     *
+     * @return bool
+     */
+    private static function logstore_available(): bool {
+        global $DB;
+
+        if (!$DB->get_manager()->table_exists('logstore_standard_log')) {
+            return false;
+        }
+
+        return array_key_exists('logstore_standard', get_log_manager()->get_readers('\core\log\sql_reader'));
+    }
+
+    /**
      * Gets event counts from Moodle's standard log store when it is available.
+     *
+     * Events written by an administrator logged in as the participant, and
+     * anonymous events, are ignored.
      *
      * @param \stdClass $course Course record.
      * @param array<int, array> $activities Activities keyed by course-module id.
@@ -277,26 +357,25 @@ class report_maker {
         $empty = [
             'summary' => [
                 'available' => false,
-                'interactions' => 0,
-                'views' => 0,
-                'activeparticipants' => 0,
-                'levels' => [
-                    'low' => 0,
-                    'medium' => 0,
-                    'high' => 0,
-                ],
+                'interactions' => null,
+                'views' => null,
+                'activeparticipants' => null,
+                'levels' => ['low' => 0, 'medium' => 0, 'high' => 0],
             ],
             'activities' => [],
         ];
-        if (!$DB->get_manager()->table_exists(new \xmldb_table('logstore_standard_log'))) {
+        if (!self::logstore_available()) {
             return $empty;
         }
+        $empty['summary']['available'] = true;
+        $empty['summary']['interactions'] = 0;
+        $empty['summary']['views'] = 0;
+        $empty['summary']['activeparticipants'] = 0;
         if (!$activities) {
-            $empty['summary']['available'] = true;
             return $empty;
         }
 
-        list($insql, $inparams) = $DB->get_in_or_equal(array_keys($activities), SQL_PARAMS_NAMED, 'logcm');
+        [$insql, $inparams] = $DB->get_in_or_equal(array_keys($activities), SQL_PARAMS_NAMED, 'logcm');
         $sql = "SELECT l.contextinstanceid AS cmid,
                        COUNT(1) AS interactions,
                        SUM(CASE WHEN l.action = :viewaction AND l.target = :viewtarget THEN 1 ELSE 0 END) AS views,
@@ -306,6 +385,8 @@ class report_maker {
                   JOIN ({$enrolledsql}) eu ON eu.id = l.userid
                  WHERE l.courseid = :courseid
                    AND l.contextlevel = :modulecontext
+                   AND l.anonymous = 0
+                   AND l.realuserid IS NULL
                    AND l.contextinstanceid {$insql}
               GROUP BY l.contextinstanceid";
         $params = array_merge($enrolledparams, $inparams, [
@@ -318,23 +399,10 @@ class report_maker {
 
         $interactions = 0;
         $views = 0;
-        $activeparticipants = [];
         foreach ($activitystats as $stat) {
             $interactions += (int)$stat->interactions;
             $views += (int)$stat->views;
         }
-
-        $usersql = "SELECT DISTINCT l.userid
-                      FROM {logstore_standard_log} l
-                      JOIN ({$enrolledsql}) eu ON eu.id = l.userid
-                     WHERE l.courseid = :courseid
-                       AND l.contextlevel = :modulecontext
-                       AND l.contextinstanceid {$insql}";
-        $userparams = array_merge($enrolledparams, $inparams, [
-            'courseid' => $course->id,
-            'modulecontext' => CONTEXT_MODULE,
-        ]);
-        $activeparticipants = $DB->get_fieldset_sql($usersql, $userparams);
 
         $usersql = "SELECT eu.id AS userid,
                            COALESCE(logstats.interactions, 0) AS interactions,
@@ -347,6 +415,8 @@ class report_maker {
                              FROM {logstore_standard_log} l
                             WHERE l.courseid = :scorecourseid
                               AND l.contextlevel = :scorecontextlevel
+                              AND l.anonymous = 0
+                              AND l.realuserid IS NULL
                               AND l.contextinstanceid {$insql}
                          GROUP BY l.userid
                  ) logstats ON logstats.userid = eu.id";
@@ -354,49 +424,45 @@ class report_maker {
             'scorecourseid' => $course->id,
             'scorecontextlevel' => CONTEXT_MODULE,
         ]));
-        $levels = self::classify_engagement($userscores);
+
+        $activeparticipants = 0;
+        foreach ($userscores as $userscore) {
+            if ((int)$userscore->interactions > 0) {
+                $activeparticipants++;
+            }
+        }
 
         return [
             'summary' => [
                 'available' => true,
                 'interactions' => $interactions,
                 'views' => $views,
-                'activeparticipants' => count($activeparticipants),
-                'levels' => $levels,
+                'activeparticipants' => $activeparticipants,
+                'levels' => self::classify_engagement($userscores, count($activities)),
             ],
             'activities' => $activitystats,
         ];
     }
 
     /**
-     * Classifies participants by their relative activity in the course logs.
+     * Classifies participants by how many of the course activities they interacted with.
      *
-     * The score combines event volume with the number of different activities
-     * used, then assigns positive scores to relative thirds of the cohort.
+     * The rule is absolute and deterministic: less than one third of the activities
+     * is low engagement, from one third to less than two thirds is medium, and two
+     * thirds or more is high. Participants with the same usage always get the same level.
      *
      * @param array<int, \stdClass> $userscores Participant log scores.
+     * @param int $activitycount Number of activities in the analysis.
      * @return array<string, int> Engagement levels keyed by level name.
      */
-    private static function classify_engagement(array $userscores): array {
+    private static function classify_engagement(array $userscores, int $activitycount): array {
         $levels = ['low' => 0, 'medium' => 0, 'high' => 0];
-        if (!$userscores) {
-            return $levels;
-        }
 
-        $scores = [];
-        foreach ($userscores as $userid => $userscore) {
-            $score = (int)$userscore->interactions + ((int)$userscore->activitycount * 2);
-            $scores[$userid] = $score;
-        }
-        asort($scores, SORT_NUMERIC);
-        $participantcount = count($scores);
-        $position = 0;
-
-        foreach ($scores as $score) {
-            $position++;
-            if ($score === 0 || ($position / $participantcount) <= (1 / 3)) {
+        foreach ($userscores as $userscore) {
+            $used = (int)$userscore->activitycount;
+            if ($activitycount < 1 || ($used * 3) < $activitycount) {
                 $levels['low']++;
-            } else if (($position / $participantcount) <= (2 / 3)) {
+            } else if (($used * 3) < ($activitycount * 2)) {
                 $levels['medium']++;
             } else {
                 $levels['high']++;
@@ -407,14 +473,23 @@ class report_maker {
     }
 
     /**
-     * Gets component grade categories and the normalised final-course distribution.
+     * Gets component grade categories and the final-course distribution, exactly as in the gradebook.
+     *
+     * Grades are never altered: the attendance threshold is only a reference value
+     * used to count how many participants are below it in the attendance category.
      *
      * @param \stdClass $course Course record.
      * @param string $enrolledsql SQL for completion-tracked, enrolled users.
      * @param array $enrolledparams Parameters for $enrolledsql.
+     * @param float $threshold Attendance reference (percent).
      * @return array
      */
-    private static function get_grades(\stdClass $course, string $enrolledsql, array $enrolledparams): array {
+    private static function get_grades(
+        \stdClass $course,
+        string $enrolledsql,
+        array $enrolledparams,
+        float $threshold
+    ): array {
         global $DB;
 
         $empty = [
@@ -430,7 +505,7 @@ class report_maker {
         $finalitem = $DB->get_record(
             'grade_items',
             ['courseid' => $course->id, 'itemtype' => 'course'],
-            'id,itemname,grademin,grademax,gradetype',
+            'id,iteminstance,itemname,grademin,grademax,gradetype',
             IGNORE_MISSING
         );
         if (!$finalitem || (int)$finalitem->gradetype !== GRADE_TYPE_VALUE ||
@@ -438,7 +513,9 @@ class report_maker {
             return $empty;
         }
 
-        $finalstats = self::get_grade_series($finalitem, $enrolledsql, $enrolledparams);
+        $finalnatural = (int)$DB->get_field('grade_categories', 'aggregation', ['id' => $finalitem->iteminstance])
+            === GRADE_AGGREGATE_SUM;
+        $finalstats = self::get_grade_series($finalitem, $finalnatural, $enrolledsql, $enrolledparams);
         if (!$finalstats) {
             return $empty;
         }
@@ -449,65 +526,51 @@ class report_maker {
             'sortorder ASC,id ASC',
             'id,iteminstance,itemname,grademin,grademax,gradetype'
         );
+        $categories = [];
+        if ($categoryitems) {
+            $categoryids = array_map(static function(\stdClass $item): int {
+                return (int)$item->iteminstance;
+            }, $categoryitems);
+            $categories = $DB->get_records_list('grade_categories', 'id', $categoryids, '', 'id,fullname,aggregation');
+        }
+
         $series = [];
-        $frequencyitem = null;
-        $nonfrequencyitems = [];
         foreach ($categoryitems as $categoryitem) {
-            $category = $DB->get_record('grade_categories', ['id' => $categoryitem->iteminstance], 'id,fullname');
+            $category = $categories[$categoryitem->iteminstance] ?? null;
             $label = $category ? (string)$category->fullname : (string)$categoryitem->itemname;
-            $stats = self::get_grade_series($categoryitem, $enrolledsql, $enrolledparams);
+            $natural = $category && (int)$category->aggregation === GRADE_AGGREGATE_SUM;
+            $isfrequency = self::is_frequency_grade_name($label);
+            $stats = self::get_grade_series(
+                $categoryitem,
+                $natural,
+                $enrolledsql,
+                $enrolledparams,
+                $isfrequency ? $threshold : null
+            );
             if (!$stats) {
                 continue;
             }
-            $kind = self::is_frequency_grade_name($label) ? 'frequency' : 'grade';
             $series[] = [
                 'key' => 'category-' . $categoryitem->id,
                 'label' => $label,
-                'kind' => $kind,
-                'mandatorythreshold' => null,
+                'kind' => $isfrequency ? 'frequency' : 'grade',
+                'threshold' => $isfrequency ? $threshold : null,
             ] + $stats;
-            if ($kind === 'frequency') {
-                $frequencyitem = $categoryitem;
-            } else {
-                $nonfrequencyitems[] = $categoryitem;
-            }
         }
 
-        // Type Z has only the two mandatory component categories. With a
-        // separate final category (type X) the Moodle aggregate remains the
-        // authoritative final result and no 75% override is applied.
-        $mandatoryfrequency = $frequencyitem && count($series) === 2 && $nonfrequencyitems;
-        if ($mandatoryfrequency) {
-            foreach ($series as &$categoryseries) {
-                if ($categoryseries['kind'] === 'frequency') {
-                    $categoryseries['mandatorythreshold'] = 75.0;
-                }
-            }
-            unset($categoryseries);
-            $finalstats = self::apply_mandatory_frequency(
-                $finalitem,
-                $frequencyitem,
-                $finalstats,
-                $enrolledsql,
-                $enrolledparams
-            );
-        }
-
-        // In type Y a single category is itself the final result. Avoid
-        // duplicating that category as a separate "final average" chart.
+        // When a single category is itself the final result, do not repeat it as a separate final chart.
         if (count($series) !== 1) {
             $series[] = [
                 'key' => 'final',
                 'label' => get_string('finalgrade', 'report_finalreport'),
                 'kind' => 'final',
-                'mandatorythreshold' => $mandatoryfrequency ? 75.0 : null,
+                'threshold' => null,
             ] + $finalstats;
         }
 
-        $count = (int)$finalstats['count'];
         return [
             'available' => true,
-            'count' => $count,
+            'count' => (int)$finalstats['count'],
             'average' => $finalstats['average'],
             'averagepercent' => $finalstats['averagepercent'],
             'minimum' => $finalstats['minimum'],
@@ -519,15 +582,27 @@ class report_maker {
 
     /**
      * Calculates a normalised grade distribution for one Moodle grade item.
+     *
+     * With natural aggregation the maximum can differ for each participant, so the
+     * per-participant range stored by the gradebook is used for those items.
+     *
+     * @param \stdClass $item Grade item record.
+     * @param bool $natural Whether the item's category uses natural aggregation.
+     * @param string $enrolledsql SQL for completion-tracked, enrolled users.
+     * @param array $enrolledparams Parameters for $enrolledsql.
+     * @param float|null $threshold Optional reference (percent) to count participants below it.
+     * @return array|null Null when no participant has a grade.
      */
     private static function get_grade_series(
         \stdClass $item,
+        bool $natural,
         string $enrolledsql,
-        array $enrolledparams
+        array $enrolledparams,
+        ?float $threshold = null
     ): ?array {
         global $DB;
 
-        $sql = "SELECT gg.userid, gg.finalgrade
+        $sql = "SELECT gg.userid, gg.finalgrade, gg.rawgrademin, gg.rawgrademax
                   FROM {grade_grades} gg
                   JOIN ({$enrolledsql}) eu ON eu.id = gg.userid
                  WHERE gg.itemid = :itemid
@@ -537,90 +612,37 @@ class report_maker {
             return null;
         }
 
-        $total = 0.0;
+        $itemmin = (float)$item->grademin;
+        $itemmax = (float)$item->grademax;
+        $totalpercent = 0.0;
+        $below = 0;
         $distribution = [0, 0, 0, 0, 0];
         foreach ($records as $record) {
-            $grade = (float)$record->finalgrade;
-            $total += $grade;
-            $percent = self::normalise_grade($grade, (float)$item->grademin, (float)$item->grademax);
+            $min = $itemmin;
+            $max = $itemmax;
+            if ($natural && $record->rawgrademax !== null && $record->rawgrademin !== null &&
+                    (float)$record->rawgrademax > (float)$record->rawgrademin) {
+                $min = (float)$record->rawgrademin;
+                $max = (float)$record->rawgrademax;
+            }
+            $percent = self::normalise_grade((float)$record->finalgrade, $min, $max);
+            $totalpercent += $percent;
             $distribution[self::grade_distribution_bucket($percent)]++;
+            if ($threshold !== null && $percent < $threshold) {
+                $below++;
+            }
         }
 
         $count = count($records);
-        $average = $total / $count;
+        $averagepercent = $totalpercent / $count;
         return [
             'count' => $count,
-            'average' => $average,
-            'averagepercent' => self::normalise_grade(
-                $average,
-                (float)$item->grademin,
-                (float)$item->grademax
-            ),
-            'minimum' => (float)$item->grademin,
-            'maximum' => (float)$item->grademax,
+            'average' => $itemmin + (($averagepercent / 100) * ($itemmax - $itemmin)),
+            'averagepercent' => $averagepercent,
+            'minimum' => $itemmin,
+            'maximum' => $itemmax,
             'distribution' => $distribution,
-        ];
-    }
-
-    /**
-     * Applies the mandatory 75% frequency rule to the final course result.
-     */
-    private static function apply_mandatory_frequency(
-        \stdClass $finalitem,
-        \stdClass $frequencyitem,
-        array $finalstats,
-        string $enrolledsql,
-        array $enrolledparams
-    ): array {
-        global $DB;
-
-        $sql = "SELECT gg.userid, gg.finalgrade
-                  FROM {grade_grades} gg
-                  JOIN ({$enrolledsql}) eu ON eu.id = gg.userid
-                 WHERE gg.itemid = :itemid
-                   AND gg.finalgrade IS NOT NULL";
-        $frequency = $DB->get_records_sql(
-            $sql,
-            array_merge($enrolledparams, ['itemid' => $frequencyitem->id])
-        );
-        $final = $DB->get_records_sql(
-            $sql,
-            array_merge($enrolledparams, ['itemid' => $finalitem->id])
-        );
-        $distribution = [0, 0, 0, 0, 0];
-        $total = 0.0;
-        foreach ($final as $userid => $record) {
-            $grade = (float)$record->finalgrade;
-            $frequencypct = isset($frequency[$userid])
-                ? self::normalise_grade(
-                    (float)$frequency[$userid]->finalgrade,
-                    (float)$frequencyitem->grademin,
-                    (float)$frequencyitem->grademax
-                )
-                : 0.0;
-            $effectivegrade = $frequencypct < 75.0 ? 0.0 : $grade;
-            $total += $effectivegrade;
-            $effectivepct = self::normalise_grade(
-                $effectivegrade,
-                (float)$finalitem->grademin,
-                (float)$finalitem->grademax
-            );
-            $distribution[self::grade_distribution_bucket($effectivepct)]++;
-        }
-
-        $count = count($final);
-        $average = $count ? $total / $count : null;
-        return [
-            'count' => $count,
-            'average' => $average,
-            'averagepercent' => $count ? self::normalise_grade(
-                (float)$average,
-                (float)$finalitem->grademin,
-                (float)$finalitem->grademax
-            ) : null,
-            'minimum' => (float)$finalitem->grademin,
-            'maximum' => (float)$finalitem->grademax,
-            'distribution' => $distribution,
+            'belowthreshold' => $threshold === null ? null : $below,
         ];
     }
 
