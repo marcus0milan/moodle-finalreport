@@ -1,0 +1,118 @@
+{{!
+    @template report_courseoverview/page
+    Main page of the course overview report.
+}}
+<form method="get" action="{{formaction}}" class="rco">
+    <div class="rco-header">
+        <div>
+            <h2 class="rco-title">{{title}}</h2>
+            <p class="rco-sub">{{subtitle}}</p>
+        </div>
+        <div class="rco-actions">
+            <a class="btn btn-secondary" href="{{pdfurl}}">{{#pix}}t/download, core{{/pix}} {{#str}}downloadpdf, report_courseoverview{{/str}}</a>
+            <a class="btn btn-dark" href="{{excelurl}}">{{#pix}}t/download, core{{/pix}} {{#str}}downloadexcel, report_courseoverview{{/str}}</a>
+        </div>
+    </div>
+
+    <div class="rco-courseline">
+        {{#courseselect}}{{> report_courseoverview/select}}{{/courseselect}}
+        <span class="rco-muted">{{updated}}</span>
+    </div>
+
+    <div class="rco-filters">
+        <span class="rco-muted rco-upper">{{#str}}filterby, report_courseoverview{{/str}}</span>
+        {{#studentselect}}{{> report_courseoverview/select}}{{/studentselect}}
+        {{#groupselect}}{{> report_courseoverview/select}}{{/groupselect}}
+        <input type="date" name="from" value="{{from}}" class="form-control rco-date" aria-label="{{fromlabel}}" onchange="this.form.submit()">
+        <input type="date" name="to" value="{{to}}" class="form-control rco-date" aria-label="{{tolabel}}" onchange="this.form.submit()">
+        <a href="{{clearurl}}">{{#str}}clearfilters, report_courseoverview{{/str}}</a>
+        <span class="rco-muted ml-auto">{{groupcount}}</span>
+    </div>
+
+    <div class="rco-grid rco-grid-4">
+        {{#kpis}}
+        <div class="rco-card">
+            <div class="rco-note">{{label}}</div>
+            <div class="rco-kpi">{{value}}</div>
+            <div class="rco-note">{{note}}</div>
+        </div>
+        {{/kpis}}
+    </div>
+
+    <div class="rco-grid rco-grid-3">
+        {{#gauges}}{{> report_courseoverview/gauge}}{{/gauges}}
+    </div>
+
+    <div class="rco-grid rco-grid-2">
+        <div class="rco-card">
+            <div class="rco-card-head">
+                <div>
+                    <h3 class="rco-card-title">{{#str}}engagement, report_courseoverview{{/str}}</h3>
+                    <p class="rco-note">{{#str}}engagement_desc, report_courseoverview{{/str}}</p>
+                </div>
+                <div class="rco-selects">
+                    {{#eperiodselect}}{{> report_courseoverview/select}}{{/eperiodselect}}
+                    {{#egranselect}}{{> report_courseoverview/select}}{{/egranselect}}
+                </div>
+            </div>
+            {{{engagementchart}}}
+            <div class="rco-card-foot"><strong>{{etotal}}</strong><span class="{{edeltaclass}}">{{edelta}}</span></div>
+        </div>
+        <div class="rco-card">
+            <div class="rco-card-head">
+                <div>
+                    <h3 class="rco-card-title">{{#str}}completions, report_courseoverview{{/str}}</h3>
+                    <p class="rco-note">{{#str}}completions_desc, report_courseoverview{{/str}}</p>
+                </div>
+                <div class="rco-selects">
+                    {{#cperiodselect}}{{> report_courseoverview/select}}{{/cperiodselect}}
+                    {{#ctypeselect}}{{> report_courseoverview/select}}{{/ctypeselect}}
+                </div>
+            </div>
+            {{{completionchart}}}
+            <div class="rco-card-foot"><strong>{{ctotal}}</strong><span class="{{cdeltaclass}}">{{cdelta}}</span></div>
+        </div>
+    </div>
+
+    <div class="rco-card">
+        <div class="rco-card-head">
+            <div>
+                <h3 class="rco-card-title">{{#str}}recent, report_courseoverview{{/str}}</h3>
+                <p class="rco-note">{{#str}}recent_desc, report_courseoverview{{/str}}</p>
+            </div>
+            <a href="{{viewallurl}}">{{#str}}viewall, report_courseoverview{{/str}} &rarr;</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table rco-table">
+                <thead>
+                    <tr>
+                        <th>{{#str}}student, report_courseoverview{{/str}}</th>
+                        <th>{{#str}}email, report_courseoverview{{/str}}</th>
+                        <th>{{#str}}activity, report_courseoverview{{/str}}</th>
+                        <th>{{#str}}type, report_courseoverview{{/str}}</th>
+                        <th>{{#str}}completedon, report_courseoverview{{/str}}</th>
+                        <th class="text-right">{{#str}}grade, report_courseoverview{{/str}}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#rows}}
+                    <tr>
+                        <td>{{student}}</td><td>{{email}}</td><td>{{activity}}</td>
+                        <td><span class="rco-pill">{{type}}</span></td><td>{{completedon}}</td>
+                        <td class="text-right">{{grade}}</td>
+                    </tr>
+                    {{/rows}}
+                    {{^hasrows}}<tr><td colspan="6" class="text-center rco-muted">{{#str}}nodata, report_courseoverview{{/str}}</td></tr>{{/hasrows}}
+                </tbody>
+            </table>
+        </div>
+        <div class="rco-card-foot"><span>{{showing}}</span></div>
+        {{{paging}}}
+    </div>
+
+    <div class="rco-footer">
+        <div><strong>{{#str}}footer_title, report_courseoverview{{/str}}</strong><br>{{#str}}footer_desc, report_courseoverview{{/str}}</div>
+        <div>{{footerright}}</div>
+    </div>
+    <noscript><button type="submit" class="btn btn-primary">{{#str}}apply, report_courseoverview{{/str}}</button></noscript>
+</form>

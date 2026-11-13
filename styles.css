@@ -1,0 +1,38 @@
+/* Functional baseline only; the visual identity comes in the next phase. */
+.rco { --rco-border: #e5e7eb; --rco-muted: #6b7280; }
+.rco-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.rco-title { margin: 0; font-weight: 700; }
+.rco-sub, .rco-note, .rco-muted { color: var(--rco-muted); }
+.rco-upper { text-transform: uppercase; font-size: .75rem; letter-spacing: .04em; }
+.rco-courseline, .rco-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: 1rem 0; }
+.rco-courseline .rco-select { min-width: 320px; }
+.rco-date { width: auto; }
+.rco-grid { display: grid; gap: 1rem; margin-bottom: 1rem; }
+.rco-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.rco-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.rco-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.rco-card { border: 1px solid var(--rco-border); border-radius: .5rem; padding: 1.25rem; background: #fff; margin-bottom: 1rem; }
+.rco-grid .rco-card { margin-bottom: 0; }
+.rco-card-title { font-size: 1.05rem; font-weight: 600; margin: 0; }
+.rco-card-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.rco-card-foot { display: flex; justify-content: space-between; border-top: 1px solid var(--rco-border); padding-top: .5rem; margin-top: .75rem; font-size: .85rem; }
+.rco-selects { display: flex; gap: .5rem; flex-wrap: wrap; }
+.rco-selects .rco-select { width: auto; }
+.rco-kpi { font-size: 2.25rem; font-weight: 700; line-height: 1.2; }
+.rco-gauge svg { width: 100%; max-height: 190px; }
+.rco-gauge-value { font-size: 36px; font-weight: 700; fill: currentColor; }
+.rco-gauge-suffix, .rco-gauge-range { font-size: 11px; fill: var(--rco-muted); }
+.rco-marker { fill: #fff; stroke: #1f2937; stroke-width: 3; }
+.rco-pos { color: #1f8a5f; }
+.rco-neg { color: #c0392b; }
+.rco-pill { background: #f1f3f5; border-radius: .25rem; padding: .1rem .5rem; font-size: .8rem; }
+.rco-table th { font-size: .75rem; text-transform: uppercase; color: var(--rco-muted); }
+.rco-footer { display: flex; justify-content: space-between; color: var(--rco-muted); font-size: .8rem; margin-top: 1.5rem; }
+@media (max-width: 991px) {
+    .rco-grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .rco-grid-3, .rco-grid-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 575px) {
+    .rco-grid-4 { grid-template-columns: 1fr; }
+    .rco-courseline .rco-select { min-width: 0; width: 100%; }
+}

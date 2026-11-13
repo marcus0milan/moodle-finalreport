@@ -1,0 +1,7 @@
+{{!
+    @template report_courseoverview/select
+    Auto-submitting select. Context: name, label, options[value,label,selected].
+}}
+<select name="{{name}}" class="custom-select rco-select" aria-label="{{label}}" onchange="this.form.submit()">
+    {{#options}}<option value="{{value}}" {{#selected}}selected{{/selected}}>{{label}}</option>{{/options}}
+</select>
