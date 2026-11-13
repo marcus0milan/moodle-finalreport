@@ -27,9 +27,9 @@ require_once($GLOBALS['CFG']->libdir . '/completionlib.php');
  *  - Students: users enrolled in the course holding a gradebook role ($CFG->gradebookroles).
  *  - Active: student with at least one currently valid enrolment. Suspended = total - active (dropout).
  *  - Activities: course modules with completion tracking AND a numeric grade item.
- *  - Course completion: course_completions.timecompleted up to the end of the period.
+ *  - Course completion: users recorded as complete in course_completions by Moodle.
  *  - Average grade: course total grade normalised to 0-10.
- *  - NPS: all Feedback activities with a numeric 0-10 question. NPS = %promoters(9-10) - %detractors(0-6).
+ *  - NPS: first compatible 0-10 question per Feedback activity. NPS = %promoters(9-10) - %detractors(0-6).
  *  - Clicks = read events (crud 'r'); Interactions = create/update/delete events; Logs = all events.
  */
 class report_data {
@@ -182,7 +182,7 @@ class report_data {
      * Gets the scores represented by a 0-10 single-choice Feedback question.
      * Multichoice answers are stored as option indexes, while rated choices store their scores in presentation.
      *
-        * @return array|null Scores in option order, or null when the question is not a 0-10 scale.
+      * @return array|null Scores in option order, or null when the question is not a 0-10 scale.
      */
     private function nps_choice_scores(string $type, string $presentation): ?array {
         if ($type === 'numeric') {
@@ -222,7 +222,7 @@ class report_data {
     public function nps(): ?array {
         global $DB;
         $items = $DB->get_records_sql(
-            "SELECT fi.id, fi.typ, fi.presentation
+            "SELECT fi.id, fi.feedback, fi.typ, fi.presentation
                FROM {feedback} f
                JOIN {course_modules} cm ON cm.instance = f.id AND cm.course = f.course
                JOIN {modules} m ON m.id = cm.module AND m.name = 'feedback'
@@ -230,13 +230,18 @@ class report_data {
               WHERE f.course = :courseid AND cm.deletioninprogress = 0
            ORDER BY f.id, fi.position", ['courseid' => $this->course->id]);
         $itemsbyid = [];
+        $seenfeedback = [];
         foreach ($items as $it) {
+            if (isset($seenfeedback[$it->feedback])) {
+                continue;
+            }
             $scores = $this->nps_choice_scores($it->typ, (string)$it->presentation);
             if ($scores !== null) {
                 $itemsbyid[$it->id] = [
                     'type' => $it->typ,
                     'scores' => $it->typ === 'numeric' ? null : $scores,
                 ];
+                $seenfeedback[$it->feedback] = true;
             }
         }
         if (!$itemsbyid) {
