@@ -213,10 +213,6 @@ class page {
             'courseselect' => $this->select('id', $this->str('course'), $courses, $s->course->id),
             'studentselect' => $this->select('userid', $this->str('allstudents'), $students, $s->userid),
             'groupselect' => $this->select('groupid', $this->str('group'), $groups, $s->groupid),
-            'from' => $s->date_input($s->from),
-            'to' => $s->date_input($s->to),
-            'fromlabel' => $this->str('from'),
-            'tolabel' => $this->str('to'),
             'clearurl' => (new \moodle_url('/report/finalreport/index.php', ['id' => $s->course->id]))->out(false),
             'groupcount' => $this->str('studentsingroup', count($data->get_students())),
             'kpis' => array_values(array_map(function ($k) use ($ind) {
@@ -241,9 +237,7 @@ class page {
             'showing' => $this->str('showing', ['from' => $total ? $page * state::PERPAGE + 1 : 0,
                 'to' => min($total, ($page + 1) * state::PERPAGE), 'total' => $total]),
             'paging' => $output->paging_bar($total, $page, state::PERPAGE, $s->url(), 'page'),
-            'footerright' => $this->str('group') . ': ' . $groupname . ' • ' .
-                userdate($s->from, get_string('strftimedateshort', 'langconfig')) . ' – ' .
-                userdate($s->to, get_string('strftimedateshort', 'langconfig')),
+            'footerright' => $this->str('group') . ': ' . $groupname,
         ];
     }
 }

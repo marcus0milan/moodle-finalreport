@@ -44,16 +44,14 @@ class report_data {
     private $context;
     private $groupid;
     private $userid;
-    private $from;
     private $to;
     private $groupstudents = null;
 
-    public function __construct(\stdClass $course, \context_course $context, int $groupid, int $userid, int $from, int $to) {
+    public function __construct(\stdClass $course, \context_course $context, int $groupid, int $userid, int $to) {
         $this->course = $course;
         $this->context = $context;
         $this->groupid = $groupid;
         $this->userid = $userid;
-        $this->from = $from;
         $this->to = $to;
     }
 
@@ -483,9 +481,9 @@ class report_data {
 
     // ---------------------------------------------------------------- Table
 
-    private function completion_from_where(): array {
+    private function completion_from_where(?int $from = null): array {
         [$usql, $params] = $this->user_in('cmc.userid', 'tu');
-        $params += ['courseid' => $this->course->id, 'tfrom' => $this->from, 'tto' => $this->to];
+        $params += ['courseid' => $this->course->id, 'tto' => $this->to];
         $sql = "FROM {course_modules_completion} cmc
                 JOIN {course_modules} cm ON cm.id = cmc.coursemoduleid
                 JOIN {modules} m ON m.id = cm.module
@@ -495,13 +493,22 @@ class report_data {
            LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = cmc.userid
                WHERE cm.course = :courseid AND cm.deletioninprogress = 0
                      AND cmc.completionstate IN (" . COMPLETION_COMPLETE . ", " . COMPLETION_COMPLETE_PASS . ")
-                     AND cmc.timemodified BETWEEN :tfrom AND :tto AND $usql";
+                     AND cmc.timemodified <= :tto AND $usql";
+        if ($from !== null) {
+            $sql .= ' AND cmc.timemodified >= :tfrom';
+            $params['tfrom'] = $from;
+        }
         return [$sql, $params];
+    }
+
+    private function recent_completion_cutoff(): int {
+        return (new \DateTime('@' . $this->to))->setTimezone(\core_date::get_user_timezone_object())
+            ->modify('-3 months')->getTimestamp();
     }
 
     public function count_completions(): int {
         global $DB;
-        [$sql, $params] = $this->completion_from_where();
+        [$sql, $params] = $this->completion_from_where($this->recent_completion_cutoff());
         return (int)$DB->count_records_sql('SELECT COUNT(1) ' . $sql, $params);
     }
 
@@ -512,7 +519,7 @@ class report_data {
     public function recent_completions(int $offset = 0, int $limit = 0): array {
         global $DB;
         require_once($GLOBALS['CFG']->dirroot . '/course/lib.php');
-        [$sql, $params] = $this->completion_from_where();
+        [$sql, $params] = $this->completion_from_where($this->recent_completion_cutoff());
         $rows = $DB->get_records_sql(
             "SELECT cmc.id, cmc.timemodified, cm.id AS cmid, m.name AS modname, u.email,
                     u.firstname, u.lastname, u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename,

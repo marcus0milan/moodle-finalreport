@@ -40,8 +40,6 @@
         <span class="rco-muted rco-upper">{{#str}}filterby, report_finalreport{{/str}}</span>
         {{#studentselect}}{{> report_finalreport/select}}{{/studentselect}}
         {{#groupselect}}{{> report_finalreport/select}}{{/groupselect}}
-        <input type="date" name="from" value="{{from}}" class="form-control rco-date" aria-label="{{fromlabel}}" onchange="this.form.submit()">
-        <input type="date" name="to" value="{{to}}" class="form-control rco-date" aria-label="{{tolabel}}" onchange="this.form.submit()">
         <a href="{{clearurl}}">{{#str}}clearfilters, report_finalreport{{/str}}</a>
         <span class="rco-muted ml-auto">{{groupcount}}</span>
     </div>

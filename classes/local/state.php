@@ -28,7 +28,6 @@ class state {
     public $context;
     public $groupid = 0;
     public $userid = 0;
-    public $from;
     public $to;
     public $eperiod = 6;
     public $egran = 'month';
@@ -61,23 +60,13 @@ class state {
             $this->groupid = $this->groups ? (int)array_key_first($this->groups) : -1;
         }
 
-        // Dates (user timezone). Default: first day of 5 months ago until today.
-        $tz = \core_date::get_user_timezone_object();
-        $defto = usergetmidnight(time());
-        $deffrom = (new \DateTime('now', $tz))->modify('first day of -5 months')->setTime(0, 0)->getTimestamp();
-        $from = $this->parse_date(optional_param('from', '', PARAM_RAW), false) ?? $deffrom;
-        $to = $this->parse_date(optional_param('to', '', PARAM_RAW), true) ?? ($defto + DAYSECS - 1);
-        if ($from > $to) {
-            [$from, $to] = [$to, $from];
-        }
-        $this->from = $from;
-        $this->to = $to;
+        $this->to = usergetmidnight(time()) + DAYSECS - 1;
 
         // Student filter validated against the group's students.
         $uid = optional_param('userid', 0, PARAM_INT);
-        $probe = new report_data($course, $context, $this->groupid, 0, $from, $to);
+        $probe = new report_data($course, $context, $this->groupid, 0, $this->to);
         $this->userid = ($uid && isset($probe->get_group_students()[$uid])) ? $uid : 0;
-        $this->data = $this->userid ? new report_data($course, $context, $this->groupid, $this->userid, $from, $to) : $probe;
+        $this->data = $this->userid ? new report_data($course, $context, $this->groupid, $this->userid, $this->to) : $probe;
 
         $e = optional_param('eperiod', 6, PARAM_INT);
         $this->eperiod = in_array($e, [3, 6, 12]) ? $e : 6;
@@ -88,18 +77,6 @@ class state {
         $t = optional_param('ctype', '', PARAM_ALPHANUMEXT);
         $this->ctype = ($t !== '' && isset($this->data->completion_modtypes()[$t])) ? $t : '';
         $this->page = max(0, optional_param('page', 0, PARAM_INT));
-    }
-
-    private function parse_date(string $s, bool $endofday): ?int {
-        if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $s, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1])) {
-            return null;
-        }
-        return $endofday ? make_timestamp((int)$m[1], (int)$m[2], (int)$m[3], 23, 59, 59)
-                         : make_timestamp((int)$m[1], (int)$m[2], (int)$m[3], 0, 0, 0);
-    }
-
-    public function date_input(int $ts): string {
-        return (new \DateTime('@' . $ts))->setTimezone(\core_date::get_user_timezone_object())->format('Y-m-d');
     }
 
     /** Start of the chart window: first day of the month ($months - 1) months before the period end. */
@@ -114,8 +91,6 @@ class state {
             'id' => $this->course->id,
             'groupid' => $this->groupid,
             'userid' => $this->userid,
-            'from' => $this->date_input($this->from),
-            'to' => $this->date_input($this->to),
             'eperiod' => $this->eperiod,
             'egran' => $this->egran,
             'cperiod' => $this->cperiod,

@@ -38,21 +38,16 @@ $S = function ($k) {
 };
 $filename = clean_filename('overview_' . $course->shortname . '_' . date('Ymd'));
 $title = get_string('pluginname', 'report_finalreport') . ' - ' . format_string($course->fullname, true, ['context' => $context]);
-$periodtxt = userdate($state->from, get_string('strftimedateshort', 'langconfig')) . ' - ' .
-    userdate($state->to, get_string('strftimedateshort', 'langconfig'));
-
 if ($format === 'xlsx') {
     $wb = new MoodleExcelWorkbook('-');
     $wb->send($filename . '.xlsx');
 
     $ws = $wb->add_worksheet($S('summary'));
     $ws->write_string(0, 0, strip_tags($title));
-    $ws->write_string(1, 0, $S('period'));
-    $ws->write_string(1, 1, $periodtxt);
-    $ws->write_string(3, 0, $S('indicator'));
-    $ws->write_string(3, 1, $S('value'));
-    $ws->write_string(3, 2, $S('details'));
-    $r = 4;
+    $ws->write_string(1, 0, $S('indicator'));
+    $ws->write_string(1, 1, $S('value'));
+    $ws->write_string(1, 2, $S('details'));
+    $r = 2;
     foreach ($ind as $i) {
         $ws->write_string($r, 0, $i['label']);
         $ws->write_string($r, 1, $i['value']);
@@ -90,7 +85,7 @@ if ($format === 'xlsx') {
 }
 
 // PDF.
-$html = '<h2>' . s(strip_tags($title)) . '</h2><p>' . s($S('period')) . ': ' . s($periodtxt) . '</p>';
+$html = '<h2>' . s(strip_tags($title)) . '</h2>';
 $html .= '<table border="1" cellpadding="4"><tr><th><b>' . s($S('indicator')) . '</b></th><th><b>' . s($S('value')) .
     '</b></th><th><b>' . s($S('details')) . '</b></th></tr>';
 foreach ($ind as $i) {

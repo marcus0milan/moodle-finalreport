@@ -23,7 +23,6 @@
 .rco-upper { text-transform: uppercase; font-size: .75rem; letter-spacing: .04em; }
 .rco-courseline, .rco-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: 1rem 0; }
 .rco-courseline .rco-select { min-width: 320px; }
-.rco-date { width: auto; }
 .rco-grid { display: grid; gap: 1rem; margin-bottom: 1rem; }
 .rco-grid-4 { grid-template-columns: repeat(4, 1fr); }
 .rco-grid-3 { grid-template-columns: repeat(3, 1fr); }
