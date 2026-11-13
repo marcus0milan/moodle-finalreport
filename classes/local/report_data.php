@@ -29,7 +29,7 @@ require_once($GLOBALS['CFG']->libdir . '/completionlib.php');
  *  - Activities: course modules with completion tracking AND a numeric grade item.
  *  - Course completion: course_completions.timecompleted up to the end of the period.
  *  - Average grade: course total grade normalised to 0-10.
- *  - NPS: first Feedback activity with a numeric 0-10 question. NPS = %promoters(9-10) - %detractors(0-6).
+ *  - NPS: all Feedback activities with a numeric 0-10 question. NPS = %promoters(9-10) - %detractors(0-6).
  *  - Clicks = read events (crud 'r'); Interactions = create/update/delete events; Logs = all events.
  */
 class report_data {
@@ -229,27 +229,26 @@ class report_data {
                JOIN {feedback_item} fi ON fi.feedback = f.id AND fi.typ IN ('numeric', 'multichoice', 'multichoicerated')
               WHERE f.course = :courseid AND cm.deletioninprogress = 0
            ORDER BY f.id, fi.position", ['courseid' => $this->course->id]);
-        $itemid = 0;
-        $itemtype = '';
-        $choicescores = null;
+        $itemsbyid = [];
         foreach ($items as $it) {
             $scores = $this->nps_choice_scores($it->typ, (string)$it->presentation);
             if ($scores !== null) {
-                $itemid = $it->id;
-                $itemtype = $it->typ;
-                $choicescores = $it->typ === 'numeric' ? null : $scores;
-                break;
+                $itemsbyid[$it->id] = [
+                    'type' => $it->typ,
+                    'scores' => $it->typ === 'numeric' ? null : $scores,
+                ];
             }
         }
-        if (!$itemid) {
+        if (!$itemsbyid) {
             return null;
         }
+        [$itemsql, $itemparams] = $DB->get_in_or_equal(array_keys($itemsbyid), SQL_PARAMS_NAMED, 'npsitem');
         $rows = $DB->get_records_sql(
-            "SELECT v.id, c.userid, v.value
+            "SELECT v.id, v.item, c.userid, v.value
                FROM {feedback_value} v
                JOIN {feedback_completed} c ON c.id = v.completed
-              WHERE v.item = :item AND c.timemodified BETWEEN :tfrom AND :tto",
-            ['item' => $itemid, 'tfrom' => $this->from, 'tto' => $this->to]);
+              WHERE v.item $itemsql AND c.timemodified BETWEEN :tfrom AND :tto",
+            $itemparams + ['tfrom' => $this->from, 'tto' => $this->to]);
         $students = $this->get_students();
         $allowanon = (!$this->userid && $this->groupid == 0);
         $n = $prom = $detr = 0;
@@ -257,13 +256,17 @@ class report_data {
             if (!isset($students[$r->userid]) && !($allowanon && (int)$r->userid === 0)) {
                 continue;
             }
+            $item = $itemsbyid[$r->item];
+            if (!is_numeric($r->value)) {
+                continue;
+            }
             $score = (float)$r->value;
-            if ($itemtype !== 'numeric') {
+            if ($item['type'] !== 'numeric') {
                 $answerindex = (int)$r->value - 1;
-                if (!isset($choicescores[$answerindex])) {
+                if (!isset($item['scores'][$answerindex])) {
                     continue;
                 }
-                $score = $choicescores[$answerindex];
+                $score = $item['scores'][$answerindex];
             }
             $score = max(0, min(10, (int)round($score)));
             $n++;
