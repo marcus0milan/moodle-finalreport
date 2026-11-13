@@ -23,21 +23,21 @@ $format = required_param('format', PARAM_ALPHA);
 $course = get_course($id);
 require_login($course);
 $context = context_course::instance($course->id);
-require_capability('report/courseoverview:view', $context);
+require_capability('report/finalreport:view', $context);
 require_sesskey();
 
-$state = new \report_courseoverview\local\state($course, $context);
-$page = new \report_courseoverview\output\page($state);
+$state = new \report_finalreport\local\state($course, $context);
+$page = new \report_finalreport\output\page($state);
 $data = $state->data;
 $ind = $page->indicators();
 $eng = $data->engagement($state->chart_start($state->eperiod), $state->to, $state->egran);
 $items = $data->recent_completions(0, 0);
 $datefmt = get_string('strftimedatetimeshort', 'langconfig');
 $S = function ($k) {
-    return get_string($k, 'report_courseoverview');
+    return get_string($k, 'report_finalreport');
 };
 $filename = clean_filename('overview_' . $course->shortname . '_' . date('Ymd'));
-$title = get_string('pluginname', 'report_courseoverview') . ' - ' . format_string($course->fullname, true, ['context' => $context]);
+$title = get_string('pluginname', 'report_finalreport') . ' - ' . format_string($course->fullname, true, ['context' => $context]);
 $periodtxt = userdate($state->from, get_string('strftimedateshort', 'langconfig')) . ' - ' .
     userdate($state->to, get_string('strftimedateshort', 'langconfig'));
 

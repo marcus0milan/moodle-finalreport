@@ -16,9 +16,9 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$string['pluginname'] = 'Course overview';
-$string['courseoverview:view'] = 'View the Course overview report';
-$string['privacy:metadata'] = 'The Course overview report does not store any personal data.';
+$string['pluginname'] = 'Final Report';
+$string['finalreport:view'] = 'View the Final Report';
+$string['privacy:metadata'] = 'The Final Report does not store any personal data.';
 $string['subtitle'] = 'Follow learning. Turn data into decisions.';
 $string['downloadpdf'] = 'Download PDF report';
 $string['downloadexcel'] = 'Download Excel report';

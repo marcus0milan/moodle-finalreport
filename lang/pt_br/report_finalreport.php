@@ -16,9 +16,9 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$string['pluginname'] = 'Visão geral do curso';
-$string['courseoverview:view'] = 'Ver o relatório Visão geral do curso';
-$string['privacy:metadata'] = 'O relatório Visão geral do curso não armazena dados pessoais.';
+$string['pluginname'] = 'Relatório final';
+$string['finalreport:view'] = 'Ver o relatório final';
+$string['privacy:metadata'] = 'O relatório final não armazena dados pessoais.';
 $string['subtitle'] = 'Acompanhe o aprendizado. Transforme dados em decisões.';
 $string['downloadpdf'] = 'Baixar relatório PDF';
 $string['downloadexcel'] = 'Baixar relatório em Excel';

@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle. If not, see <https://www.gnu.org/licenses/>.
 
-namespace report_courseoverview\output;
+namespace report_finalreport\output;
 
-use report_courseoverview\local\report_data;
-use report_courseoverview\local\state;
+use report_finalreport\local\report_data;
+use report_finalreport\local\state;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -34,7 +34,7 @@ class page {
     }
 
     private function str(string $key, $a = null): string {
-        return get_string($key, 'report_courseoverview', $a);
+        return get_string($key, 'report_finalreport', $a);
     }
 
     private function metrics(): array {
@@ -159,7 +159,7 @@ class page {
 
         // Filters.
         $courses = [];
-        $list = get_user_capability_course('report/courseoverview:view', $USER->id, true, 'shortname,fullname', 'fullname ASC', 300);
+        $list = get_user_capability_course('report/finalreport:view', $USER->id, true, 'shortname,fullname', 'fullname ASC', 300);
         foreach ($list ?: [] as $c) {
             $courses[$c->id] = format_string($c->fullname, true, ['escape' => false, 'context' => \context_system::instance()]);
         }
@@ -204,11 +204,11 @@ class page {
         $groupname = $s->groupid > 0 ? $s->groups[$s->groupid] : $this->str('allgroups');
 
         return [
-            'formaction' => (new \moodle_url('/report/courseoverview/index.php'))->out(false),
+            'formaction' => (new \moodle_url('/report/finalreport/index.php'))->out(false),
             'title' => $this->str('pluginname'),
             'subtitle' => $this->str('subtitle'),
-            'pdfurl' => $s->url(['format' => 'pdf', 'sesskey' => sesskey()], '/report/courseoverview/export.php')->out(false),
-            'excelurl' => $s->url(['format' => 'xlsx', 'sesskey' => sesskey()], '/report/courseoverview/export.php')->out(false),
+            'pdfurl' => $s->url(['format' => 'pdf', 'sesskey' => sesskey()], '/report/finalreport/export.php')->out(false),
+            'excelurl' => $s->url(['format' => 'xlsx', 'sesskey' => sesskey()], '/report/finalreport/export.php')->out(false),
             'updated' => $this->str('updatedat', userdate(time(), get_string('strftimedatetimeshort', 'langconfig'))),
             'courseselect' => $this->select('id', $this->str('course'), $courses, $s->course->id),
             'studentselect' => $this->select('userid', $this->str('allstudents'), $students, $s->userid),
@@ -217,7 +217,7 @@ class page {
             'to' => $s->date_input($s->to),
             'fromlabel' => $this->str('from'),
             'tolabel' => $this->str('to'),
-            'clearurl' => (new \moodle_url('/report/courseoverview/index.php', ['id' => $s->course->id]))->out(false),
+            'clearurl' => (new \moodle_url('/report/finalreport/index.php', ['id' => $s->course->id]))->out(false),
             'groupcount' => $this->str('studentsingroup', count($data->get_students())),
             'kpis' => array_values(array_map(function ($k) use ($ind) {
                 return $ind[$k];

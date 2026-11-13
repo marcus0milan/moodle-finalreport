@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle. If not, see <https://www.gnu.org/licenses/>.
 
-namespace report_courseoverview\local;
+namespace report_finalreport\local;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -109,7 +109,7 @@ class state {
             ->modify('first day of this month')->modify('-' . ($months - 1) . ' months')->setTime(0, 0)->getTimestamp();
     }
 
-    public function url(array $extra = [], string $path = '/report/courseoverview/index.php'): \moodle_url {
+    public function url(array $extra = [], string $path = '/report/finalreport/index.php'): \moodle_url {
         return new \moodle_url($path, $extra + [
             'id' => $this->course->id,
             'groupid' => $this->groupid,
