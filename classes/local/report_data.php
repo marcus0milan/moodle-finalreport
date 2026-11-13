@@ -27,9 +27,9 @@ require_once($GLOBALS['CFG']->libdir . '/completionlib.php');
  *  - Students: users enrolled in the course holding a gradebook role ($CFG->gradebookroles).
  *  - Active: student with at least one currently valid enrolment. Suspended = total - active (dropout).
  *  - Activities: course modules with completion tracking AND a numeric grade item.
- *  - Course completion: users recorded as complete in course_completions by Moodle.
+ *  - Course completion: course_completions.timecompleted up to the end of the period.
  *  - Average grade: course total grade normalised to 0-10.
- *  - NPS: first compatible 0-10 question per Feedback activity. NPS = %promoters(9-10) - %detractors(0-6).
+ *  - NPS: first Feedback activity with a numeric 0-10 question. NPS = %promoters(9-10) - %detractors(0-6).
  *  - Clicks = read events (crud 'r'); Interactions = create/update/delete events; Logs = all events.
  */
 class report_data {
@@ -137,7 +137,12 @@ class report_data {
             ['courseid' => $this->course->id]);
     }
 
-    /** @return array|null ['done'=>int,'total'=>int,'pct'=>float] or null when course completion is disabled. */
+    /**
+     * Course completion rate.
+     * - When the course has course-completion criteria, uses Moodle's own result (course_completions, filled by cron).
+     * - When it has none (only activity completion), uses "completed ALL activities that track completion".
+     * @return array|null ['done','total','pct','mode'] (mode: 'course'|'activities'); null when completion is disabled.
+     */
     public function course_completion(): ?array {
         global $DB;
         if (!(new \completion_info($this->course))->is_enabled()) {
@@ -145,31 +150,70 @@ class report_data {
         }
         $total = count($this->get_students());
         $done = 0;
+        $mode = 'course';
         if ($total) {
-            [$usql, $params] = $this->user_in('cc.userid', 'cu');
-            $params += ['courseid' => $this->course->id, 'tto' => $this->to];
-            $done = (int)$DB->count_records_sql(
-                "SELECT COUNT(DISTINCT cc.userid) FROM {course_completions} cc
-                  WHERE cc.course = :courseid AND cc.timecompleted IS NOT NULL
-                        AND cc.timecompleted <= :tto AND $usql", $params);
+            if ($DB->record_exists('course_completion_criteria', ['course' => $this->course->id])) {
+                [$usql, $params] = $this->user_in('cc.userid', 'cu');
+                $params += ['courseid' => $this->course->id, 'tto' => $this->to];
+                $done = (int)$DB->count_records_sql(
+                    "SELECT COUNT(DISTINCT cc.userid) FROM {course_completions} cc
+                      WHERE cc.course = :courseid AND cc.timecompleted IS NOT NULL
+                            AND cc.timecompleted <= :tto AND $usql", $params);
+            } else {
+                $mode = 'activities';
+                $tracked = (int)$DB->count_records_sql(
+                    "SELECT COUNT(1) FROM {course_modules} cm
+                      WHERE cm.course = :courseid AND cm.completion > 0 AND cm.deletioninprogress = 0",
+                    ['courseid' => $this->course->id]);
+                if ($tracked) {
+                    [$usql, $params] = $this->user_in('cmc.userid', 'au');
+                    $params += ['courseid' => $this->course->id, 'tto' => $this->to];
+                    $rows = $DB->get_records_sql(
+                        "SELECT cmc.userid, COUNT(DISTINCT cmc.coursemoduleid) AS cnt
+                           FROM {course_modules_completion} cmc
+                           JOIN {course_modules} cm ON cm.id = cmc.coursemoduleid
+                          WHERE cm.course = :courseid AND cm.completion > 0 AND cm.deletioninprogress = 0
+                                AND cmc.completionstate IN (" . COMPLETION_COMPLETE . ", " . COMPLETION_COMPLETE_PASS . ")
+                                AND cmc.timemodified <= :tto AND $usql
+                       GROUP BY cmc.userid", $params);
+                    foreach ($rows as $r) {
+                        if ((int)$r->cnt >= $tracked) {
+                            $done++;
+                        }
+                    }
+                }
+            }
         }
-        return ['done' => $done, 'total' => $total, 'pct' => $total ? $done / $total * 100 : 0.0];
+        return ['done' => $done, 'total' => $total, 'pct' => $total ? $done / $total * 100 : 0.0, 'mode' => $mode];
     }
 
-    /** @return array|null ['avg'=>float(0-10),'count'=>int] */
+    /**
+     * Average of the course total grade, normalised to 0-10.
+     * With "Natural" aggregation Moodle stores each student's own maximum in grade_grades.rawgrademax
+     * (empty grades are excluded), so that is the correct denominator in that case.
+     * @return array|null ['avg'=>float(0-10),'count'=>int]
+     */
     public function average_grade(): ?array {
         global $DB;
         [$usql, $params] = $this->user_in('gg.userid', 'gu');
         $params += ['courseid' => $this->course->id];
         $rows = $DB->get_records_sql(
-            "SELECT gg.id, gg.finalgrade, gi.grademin, gi.grademax
+            "SELECT gg.id, gg.finalgrade, gg.rawgrademin, gg.rawgrademax, gi.grademin, gi.grademax, gc.aggregation
                FROM {grade_items} gi
                JOIN {grade_grades} gg ON gg.itemid = gi.id
+          LEFT JOIN {grade_categories} gc ON gc.id = gi.iteminstance
               WHERE gi.courseid = :courseid AND gi.itemtype = 'course' AND gg.finalgrade IS NOT NULL AND $usql", $params);
         $sum = 0.0;
         $n = 0;
         foreach ($rows as $r) {
-            $v = self::norm10($r->finalgrade, $r->grademin, $r->grademax);
+            $min = $r->grademin;
+            $max = $r->grademax;
+            // 13 = GRADE_AGGREGATE_SUM (Natural).
+            if ((int)$r->aggregation === 13 && $r->rawgrademax !== null && (float)$r->rawgrademax > 0) {
+                $min = $r->rawgrademin;
+                $max = $r->rawgrademax;
+            }
+            $v = self::norm10($r->finalgrade, $min, $max);
             if ($v !== null) {
                 $sum += $v;
                 $n++;
@@ -179,10 +223,10 @@ class report_data {
     }
 
     /**
-     * Gets the scores represented by a 0-10 single-choice Feedback question.
+     * Gets the scores represented by a 0-10 Feedback question.
      * Multichoice answers are stored as option indexes, while rated choices store their scores in presentation.
      *
-      * @return array|null Scores in option order, or null when the question is not a 0-10 scale.
+     * @return array|null Scores in option order, or null when the question is not a 0-10 scale.
      */
     private function nps_choice_scores(string $type, string $presentation): ?array {
         if ($type === 'numeric') {
@@ -218,7 +262,11 @@ class report_data {
         return $scores;
     }
 
-    /** @return array|null ['nps'=>float,'responses'=>int] or null when no 0-10 Feedback question exists. */
+    /**
+     * @return array|null ['nps'=>float|null,'responses'=>int,'total'=>int]
+     *         'responses' = counted in the current filters; 'total' = all answers ever given to the NPS questions.
+     *         null when no 0-10 Feedback question exists.
+     */
     public function nps(): ?array {
         global $DB;
         $items = $DB->get_records_sql(
@@ -237,10 +285,7 @@ class report_data {
             }
             $scores = $this->nps_choice_scores($it->typ, (string)$it->presentation);
             if ($scores !== null) {
-                $itemsbyid[$it->id] = [
-                    'type' => $it->typ,
-                    'scores' => $it->typ === 'numeric' ? null : $scores,
-                ];
+                $itemsbyid[$it->id] = ['type' => $it->typ, 'scores' => $it->typ === 'numeric' ? null : $scores];
                 $seenfeedback[$it->feedback] = true;
             }
         }
@@ -248,23 +293,27 @@ class report_data {
             return null;
         }
         [$itemsql, $itemparams] = $DB->get_in_or_equal(array_keys($itemsbyid), SQL_PARAMS_NAMED, 'npsitem');
+        $total = (int)$DB->count_records_sql("SELECT COUNT(1) FROM {feedback_value} v WHERE v.item $itemsql", $itemparams);
+
         $rows = $DB->get_records_sql(
-            "SELECT v.id, v.item, c.userid, v.value
+            "SELECT v.id, v.item, c.userid, c.anonymous_response, v.value
                FROM {feedback_value} v
                JOIN {feedback_completed} c ON c.id = v.completed
               WHERE v.item $itemsql AND c.timemodified BETWEEN :tfrom AND :tto",
             $itemparams + ['tfrom' => $this->from, 'tto' => $this->to]);
         $students = $this->get_students();
+        // Anonymous answers cannot be tied to a student, so they only count when no group/student filter is set.
         $allowanon = (!$this->userid && $this->groupid == 0);
         $n = $prom = $detr = 0;
         foreach ($rows as $r) {
-            if (!isset($students[$r->userid]) && !($allowanon && (int)$r->userid === 0)) {
+            $anonymous = ((int)$r->anonymous_response === 1) || (int)$r->userid === 0;
+            if ($anonymous ? !$allowanon : !isset($students[$r->userid])) {
                 continue;
             }
-            $item = $itemsbyid[$r->item];
             if (!is_numeric($r->value)) {
                 continue;
             }
+            $item = $itemsbyid[$r->item];
             $score = (float)$r->value;
             if ($item['type'] !== 'numeric') {
                 $answerindex = (int)$r->value - 1;
@@ -281,7 +330,7 @@ class report_data {
                 $detr++;
             }
         }
-        return $n ? ['nps' => ($prom - $detr) / $n * 100, 'responses' => $n] : ['nps' => null, 'responses' => 0];
+        return ['nps' => $n ? ($prom - $detr) / $n * 100 : null, 'responses' => $n, 'total' => $total];
     }
 
     public function metrics(): array {
