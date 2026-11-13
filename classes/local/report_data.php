@@ -513,7 +513,7 @@ class report_data {
     }
 
     /**
-     * Latest activity completions. $limit = 0 returns everything.
+    * Latest activity completions from the last three months. $limit = 0 returns all rows in that period.
      * @return array of objects: student, email, activity, type, time, grade (0-10 or null)
      */
     public function recent_completions(int $offset = 0, int $limit = 0): array {
