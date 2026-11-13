@@ -58,8 +58,8 @@
         {{#gauges}}{{> report_finalreport/gauge}}{{/gauges}}
     </div>
 
-    <div class="rco-grid rco-grid-2">
-        <div class="rco-card">
+    <div class="rco-grid" style="grid-template-columns: minmax(0, 1fr); justify-items: center;">
+        <div class="rco-card" style="width: 100%; max-width: 1100px;">
             <div class="rco-card-head">
                 <div>
                     <h3 class="rco-card-title">{{#str}}engagement, report_finalreport{{/str}}</h3>
@@ -73,7 +73,7 @@
             {{{engagementchart}}}
             <div class="rco-card-foot"><strong>{{etotal}}</strong><span class="{{edeltaclass}}">{{edelta}}</span></div>
         </div>
-        <div class="rco-card">
+        <div class="rco-card" style="width: 100%; max-width: 1100px;">
             <div class="rco-card-head">
                 <div>
                     <h3 class="rco-card-title">{{#str}}completions, report_finalreport{{/str}}</h3>
