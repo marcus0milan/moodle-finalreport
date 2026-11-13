@@ -23,13 +23,16 @@ require_once($GLOBALS['CFG']->libdir . '/completionlib.php');
 /**
  * All queries and calculations of the report. Everything is read live from the Moodle database.
  *
+ * All indicators (KPIs, gauges, table) are cumulative: from the start of the course until now.
+ * Only the time-series charts use their own "last N months" window.
+ *
  * Definitions:
  *  - Students: users enrolled in the course holding a gradebook role ($CFG->gradebookroles).
  *  - Active: student with at least one currently valid enrolment. Suspended = total - active (dropout).
  *  - Activities: course modules with completion tracking AND a numeric grade item.
- *  - Course completion: course_completions.timecompleted up to the end of the period.
+ *  - Course completion: course_completions (when the course has criteria) or all tracked activities completed.
  *  - Average grade: course total grade normalised to 0-10.
- *  - NPS: first compatible 0-10 question from each Feedback activity, regardless of completion tracking.
+ *  - NPS: every answer to the first 0-10 question of each Feedback activity (multichoice or numeric).
  *    NPS = %promoters(9-10) - %detractors(0-6).
  *  - Clicks = read events (crud 'r'); Interactions = create/update/delete events; Logs = all events.
  */
@@ -239,11 +242,16 @@ class report_data {
         if (!in_array($type, ['multichoice', 'multichoicerated'], true)) {
             return null;
         }
-        $parts = explode('>>>>>', $presentation, 2);
-        if (count($parts) !== 2 || !in_array($parts[0], ['r', 'd'], true)) {
+        $sep = strpos($presentation, '>>>>>');
+        if ($sep === false || !in_array(substr($presentation, 0, 1), ['r', 'd'], true)) {
             return null;
         }
-        $options = explode('|', explode('<<<<<', $parts[1], 2)[0]);
+        // Drop the optional horizontal-layout suffix ("<<<<<1") and normalise line breaks.
+        $optionstr = explode('<<<<<', substr($presentation, $sep + 5), 2)[0];
+        $options = explode('|', str_replace(["\r\n", "\r", "\n"], '|', $optionstr));
+        $options = array_values(array_filter($options, function ($o) {
+            return trim(strip_tags((string)$o)) !== '';
+        }));
         if (count($options) !== 11) {
             return null;
         }
@@ -265,7 +273,7 @@ class report_data {
 
     /**
      * @return array|null ['nps'=>float|null,'responses'=>int,'total'=>int]
-     *         'responses' = counted in the current filters; 'total' = all answers ever given to the NPS questions.
+     *         'responses' = answers counted within the group/student filters; 'total' = all answers ever given to the NPS questions.
      *         null when no 0-10 Feedback question exists.
      */
     public function nps(): ?array {
@@ -300,8 +308,8 @@ class report_data {
             "SELECT v.id, v.item, c.userid, c.anonymous_response, v.value
                FROM {feedback_value} v
                JOIN {feedback_completed} c ON c.id = v.completed
-              WHERE v.item $itemsql AND c.timemodified BETWEEN :tfrom AND :tto",
-            $itemparams + ['tfrom' => $this->from, 'tto' => $this->to]);
+              WHERE v.item $itemsql AND c.timemodified <= :tto",
+            $itemparams + ['tto' => $this->to]);
         $students = $this->get_students();
         // Anonymous answers cannot be tied to a student, so they only count when no group/student filter is set.
         $allowanon = (!$this->userid && $this->groupid == 0);
