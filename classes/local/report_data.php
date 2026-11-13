@@ -178,22 +178,66 @@ class report_data {
         return $n ? ['avg' => $sum / $n, 'count' => $n] : null;
     }
 
-    /** @return array|null ['nps'=>float,'responses'=>int] or null when no 0-10 numeric Feedback question exists. */
+    /**
+     * Gets the scores represented by a 0-10 single-choice Feedback question.
+     * Multichoice answers are stored as option indexes, while rated choices store their scores in presentation.
+     *
+        * @return array|null Scores in option order, or null when the question is not a 0-10 scale.
+     */
+    private function nps_choice_scores(string $type, string $presentation): ?array {
+        if ($type === 'numeric') {
+            $range = explode('|', $presentation);
+            return count($range) >= 2 && is_numeric($range[0]) && is_numeric($range[1]) &&
+                (float)$range[0] === 0.0 && (float)$range[1] === 10.0 ? range(0, 10) : null;
+        }
+
+        if (!in_array($type, ['multichoice', 'multichoicerated'], true)) {
+            return null;
+        }
+        $parts = explode('>>>>>', $presentation, 2);
+        if (count($parts) !== 2 || !in_array($parts[0], ['r', 'd'], true)) {
+            return null;
+        }
+        $options = explode('|', explode('<<<<<', $parts[1], 2)[0]);
+        if (count($options) !== 11) {
+            return null;
+        }
+
+        $scores = [];
+        foreach ($options as $index => $option) {
+            if ($type === 'multichoicerated') {
+                $score = explode('####', $option, 2)[0];
+            } else {
+                $score = trim(html_entity_decode(strip_tags($option), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            }
+            if (!is_numeric($score) || (float)$score !== (float)$index) {
+                return null;
+            }
+            $scores[] = (float)$score;
+        }
+        return $scores;
+    }
+
+    /** @return array|null ['nps'=>float,'responses'=>int] or null when no 0-10 Feedback question exists. */
     public function nps(): ?array {
         global $DB;
         $items = $DB->get_records_sql(
-            "SELECT fi.id, fi.presentation
+            "SELECT fi.id, fi.typ, fi.presentation
                FROM {feedback} f
                JOIN {course_modules} cm ON cm.instance = f.id AND cm.course = f.course
                JOIN {modules} m ON m.id = cm.module AND m.name = 'feedback'
-               JOIN {feedback_item} fi ON fi.feedback = f.id AND fi.typ = 'numeric'
+               JOIN {feedback_item} fi ON fi.feedback = f.id AND fi.typ IN ('numeric', 'multichoice', 'multichoicerated')
               WHERE f.course = :courseid AND cm.deletioninprogress = 0
            ORDER BY f.id, fi.position", ['courseid' => $this->course->id]);
         $itemid = 0;
+        $itemtype = '';
+        $choicescores = null;
         foreach ($items as $it) {
-            $p = explode('|', (string)$it->presentation);
-            if (count($p) >= 2 && trim($p[0]) === '0' && trim($p[1]) === '10') {
+            $scores = $this->nps_choice_scores($it->typ, (string)$it->presentation);
+            if ($scores !== null) {
                 $itemid = $it->id;
+                $itemtype = $it->typ;
+                $choicescores = $it->typ === 'numeric' ? null : $scores;
                 break;
             }
         }
@@ -213,7 +257,15 @@ class report_data {
             if (!isset($students[$r->userid]) && !($allowanon && (int)$r->userid === 0)) {
                 continue;
             }
-            $score = max(0, min(10, (int)round((float)$r->value)));
+            $score = (float)$r->value;
+            if ($itemtype !== 'numeric') {
+                $answerindex = (int)$r->value - 1;
+                if (!isset($choicescores[$answerindex])) {
+                    continue;
+                }
+                $score = $choicescores[$answerindex];
+            }
+            $score = max(0, min(10, (int)round($score)));
             $n++;
             if ($score >= 9) {
                 $prom++;

@@ -60,13 +60,13 @@ class page {
             'note' => $this->str('dropout_note', ['suspended' => $m['suspended'], 'total' => $m['enrolled']])];
 
         $nps = $m['nps'];
-        $ind['nps'] = ['label' => $this->str('nps'), 'fraction' => null, 'value' => '—', 'min' => '0', 'max' => '100%',
+        $ind['nps'] = ['label' => $this->str('nps'), 'fraction' => null, 'value' => '—', 'min' => '-100', 'max' => '100',
             'note' => $this->str('nps_missing')];
         if ($nps !== null) {
             $ind['nps']['note'] = $this->str('nps_note', $nps['responses']);
             if ($nps['nps'] !== null) {
                 $ind['nps']['value'] = $this->pct($nps['nps']);
-                $ind['nps']['fraction'] = max(0, min(1, $nps['nps'] / 100));
+                $ind['nps']['fraction'] = max(0, min(1, ($nps['nps'] + 100) / 200));
             }
         }
         $c = $m['completion'];
