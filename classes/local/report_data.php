@@ -29,7 +29,8 @@ require_once($GLOBALS['CFG']->libdir . '/completionlib.php');
  *  - Activities: course modules with completion tracking AND a numeric grade item.
  *  - Course completion: course_completions.timecompleted up to the end of the period.
  *  - Average grade: course total grade normalised to 0-10.
- *  - NPS: first Feedback activity with a numeric 0-10 question. NPS = %promoters(9-10) - %detractors(0-6).
+ *  - NPS: first compatible 0-10 question from each Feedback activity, regardless of completion tracking.
+ *    NPS = %promoters(9-10) - %detractors(0-6).
  *  - Clicks = read events (crud 'r'); Interactions = create/update/delete events; Logs = all events.
  */
 class report_data {
