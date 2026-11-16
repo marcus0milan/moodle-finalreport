@@ -65,7 +65,7 @@ class page {
         if ($nps !== null) {
             $ind['nps']['note'] = $this->str('nps_note', $nps['responses']);
             if ($nps['nps'] !== null) {
-                $ind['nps']['value'] = format_float($nps['nps'], 0);
+                $ind['nps']['value'] = format_float($nps['nps'], 0) . '%';
                 $ind['nps']['fraction'] = max(0, min(1, ($nps['nps'] + 100) / 200));
             }
         }
