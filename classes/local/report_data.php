@@ -150,7 +150,7 @@ class report_data {
         if (!$quizsettings || $questioncount !== 1 || (float)$quizsettings->gradepass <= 0 ||
                 (float)$quizsettings->grade <= 0 ||
                 (float)$quizsettings->sumgrades <= 0 || (float)$quizsettings->gradepass > (float)$quizsettings->grade) {
-            throw new \moodle_exception('confirmationquizinvalid', 'report_finalreport');
+            throw new \moodle_exception('confirmationmethodinvalid', 'report_finalreport');
         }
 
         $rows = $DB->get_records_sql(
@@ -203,11 +203,12 @@ class report_data {
 
     /** @return array user IDs keyed by ID */
     private function get_feedback_confirmed_students(int $feedbackid): array {
-        global $DB;
+        global $DB, $CFG;
 
+        require_once($CFG->dirroot . '/mod/feedback/lib.php');
         $feedback = $DB->get_record('feedback', ['id' => $feedbackid], 'id, anonymous', MUST_EXIST);
-        if ((int)$feedback->anonymous !== 0) {
-            throw new \moodle_exception('confirmationfeedbackanonymous', 'report_finalreport');
+        if ((int)$feedback->anonymous !== \FEEDBACK_ANONYMOUS_NO) {
+            throw new \moodle_exception('confirmationmethodinvalid', 'report_finalreport');
         }
 
         $items = $DB->get_records('feedback_item', ['feedback' => $feedbackid],
@@ -223,13 +224,13 @@ class report_data {
                 continue;
             }
             if ($confirmationitem !== null) {
-                throw new \moodle_exception('confirmationfeedbackinvalid', 'report_finalreport');
+                throw new \moodle_exception('confirmationmethodinvalid', 'report_finalreport');
             }
             $confirmationitem = (int)$item->id;
             $yesindex = $option;
         }
         if ($confirmationitem === null) {
-            throw new \moodle_exception('confirmationfeedbackinvalid', 'report_finalreport');
+            throw new \moodle_exception('confirmationmethodinvalid', 'report_finalreport');
         }
 
         $rows = $DB->get_records_sql(
