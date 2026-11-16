@@ -17,3 +17,5 @@ Esse plugin tem como objetivo implementar um painel para melhor visualização p
 
 Para acessar o paínel, ele fica dentro de um curso, no menu de Relatórios.
 
+##
+
