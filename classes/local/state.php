@@ -22,8 +22,6 @@ defined('MOODLE_INTERNAL') || die();
  * Reads and validates the request filters and exposes the data provider for them.
  */
 class state {
-    public const PERPAGE = 10;
-
     public $course;
     public $context;
     public $groupid = 0;
@@ -33,7 +31,6 @@ class state {
     public $egran = 'month';
     public $cperiod = 6;
     public $ctype = '';
-    public $page = 0;
     /** @var array id => name of groups the user may select */
     public $groups = [];
     public $restricted = false;
@@ -76,7 +73,6 @@ class state {
         $this->egran = in_array($g, ['day', 'week', 'month']) ? $g : 'month';
         $t = optional_param('ctype', '', PARAM_ALPHANUMEXT);
         $this->ctype = ($t !== '' && isset($this->data->completion_modtypes()[$t])) ? $t : '';
-        $this->page = max(0, optional_param('page', 0, PARAM_INT));
     }
 
     /** Start of the chart window: first day of the month ($months - 1) months before the period end. */

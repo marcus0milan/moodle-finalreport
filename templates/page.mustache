@@ -83,46 +83,11 @@
                     {{#cperiodselect}}{{> report_finalreport/select}}{{/cperiodselect}}
                     {{#ctypeselect}}{{> report_finalreport/select}}{{/ctypeselect}}
                 </div>
+                <a href="{{viewcompletionsurl}}">{{#str}}viewcompletions, report_finalreport{{/str}} &rarr;</a>
             </div>
             {{{completionchart}}}
             <div class="rco-card-foot"><strong>{{ctotal}}</strong><span class="{{cdeltaclass}}">{{cdelta}}</span></div>
         </div>
-    </div>
-
-    <div class="rco-card">
-        <div class="rco-card-head">
-            <div>
-                <h3 class="rco-card-title">{{#str}}recent, report_finalreport{{/str}}</h3>
-                <p class="rco-note">{{#str}}recent_desc, report_finalreport{{/str}}</p>
-            </div>
-            <a href="{{viewallurl}}">{{#str}}viewall, report_finalreport{{/str}} &rarr;</a>
-        </div>
-        <div class="table-responsive">
-            <table class="table rco-table">
-                <thead>
-                    <tr>
-                        <th>{{#str}}student, report_finalreport{{/str}}</th>
-                        <th>{{#str}}email, report_finalreport{{/str}}</th>
-                        <th>{{#str}}activity, report_finalreport{{/str}}</th>
-                        <th>{{#str}}type, report_finalreport{{/str}}</th>
-                        <th>{{#str}}completedon, report_finalreport{{/str}}</th>
-                        <th class="text-right">{{#str}}grade, report_finalreport{{/str}}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{#rows}}
-                    <tr>
-                        <td>{{student}}</td><td>{{email}}</td><td>{{activity}}</td>
-                        <td><span class="rco-pill">{{type}}</span></td><td>{{completedon}}</td>
-                        <td class="text-right">{{grade}}</td>
-                    </tr>
-                    {{/rows}}
-                    {{^hasrows}}<tr><td colspan="6" class="text-center rco-muted">{{#str}}nodata, report_finalreport{{/str}}</td></tr>{{/hasrows}}
-                </tbody>
-            </table>
-        </div>
-        <div class="rco-card-foot"><span>{{showing}}</span></div>
-        {{{paging}}}
     </div>
 
     <div class="rco-footer">

@@ -151,7 +151,7 @@ class page {
         return $OUTPUT->render($chart);
     }
 
-    public function export_for_template(\renderer_base $output): array {
+    public function export_for_template(): array {
         global $USER;
         $s = $this->s;
         $data = $s->data;
@@ -188,17 +188,6 @@ class page {
                 12 => $this->str('lastmonths', 12)], $cur);
         };
 
-        // Table.
-        $total = $data->count_completions();
-        $page = min($s->page, max(0, (int)ceil($total / state::PERPAGE) - 1));
-        $rows = [];
-        foreach ($data->recent_completions($page * state::PERPAGE, state::PERPAGE) as $r) {
-            $rows[] = [
-                'student' => $r->student, 'email' => $r->email, 'activity' => $r->activity, 'type' => $r->type,
-                'completedon' => userdate($r->time, get_string('strftimedatetimeshort', 'langconfig')),
-                'grade' => $r->grade === null ? '—' : format_float($r->grade, 1),
-            ];
-        }
         $groupname = $s->groupid > 0 ? $s->groups[$s->groupid] : $this->str('allgroups');
 
         return [
@@ -229,12 +218,7 @@ class page {
                 ['' => $this->str('allactivities')] + $data->completion_modtypes(), $s->ctype),
             'ctotal' => $this->str('completionsinperiod', number_format(array_sum($comp['values']), 0, ',', '.')),
             'cdelta' => $cdelta['text'], 'cdeltaclass' => $cdelta['class'],
-            'viewallurl' => (new \moodle_url('/report/progress/index.php', ['course' => $s->course->id]))->out(false),
-            'rows' => $rows,
-            'hasrows' => !empty($rows),
-            'showing' => $this->str('showing', ['from' => $total ? $page * state::PERPAGE + 1 : 0,
-                'to' => min($total, ($page + 1) * state::PERPAGE), 'total' => $total]),
-            'paging' => $output->paging_bar($total, $page, state::PERPAGE, $s->url(), 'page'),
+            'viewcompletionsurl' => (new \moodle_url('/report/progress/index.php', ['course' => $s->course->id]))->out(false),
             'footerright' => $this->str('group') . ': ' . $groupname,
         ];
     }

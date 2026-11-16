@@ -32,5 +32,5 @@ $state = new \report_finalreport\local\state($course, $context);
 $page = new \report_finalreport\output\page($state);
 
 echo $OUTPUT->header();
-echo $OUTPUT->render_from_template('report_finalreport/page', $page->export_for_template($OUTPUT));
+echo $OUTPUT->render_from_template('report_finalreport/page', $page->export_for_template());
 echo $OUTPUT->footer();

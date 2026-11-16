@@ -31,8 +31,6 @@ $page = new \report_finalreport\output\page($state);
 $data = $state->data;
 $ind = $page->indicators();
 $eng = $data->engagement($state->chart_start($state->eperiod), $state->to, $state->egran);
-$items = $data->recent_completions(0, 0);
-$datefmt = get_string('strftimedatetimeshort', 'langconfig');
 $S = function ($k) {
     return get_string($k, 'report_finalreport');
 };
@@ -66,20 +64,6 @@ if ($format === 'xlsx') {
         $ws2->write_number($k + 1, 3, $eng['interactions'][$k]);
     }
 
-    $ws3 = $wb->add_worksheet($S('completions'));
-    foreach ([$S('student'), $S('email'), $S('activity'), $S('type'), $S('completedon'), $S('grade')] as $c => $h) {
-        $ws3->write_string(0, $c, $h);
-    }
-    foreach ($items as $k => $it) {
-        $ws3->write_string($k + 1, 0, $it->student);
-        $ws3->write_string($k + 1, 1, $it->email);
-        $ws3->write_string($k + 1, 2, $it->activity);
-        $ws3->write_string($k + 1, 3, $it->type);
-        $ws3->write_string($k + 1, 4, userdate($it->time, $datefmt));
-        if ($it->grade !== null) {
-            $ws3->write_number($k + 1, 5, round($it->grade, 2));
-        }
-    }
     $wb->close();
     exit;
 }
@@ -98,14 +82,6 @@ foreach ($eng['labels'] as $k => $label) {
     $html .= '<tr><td>' . s($label) . '</td><td>' . $eng['clicks'][$k] . '</td><td>' . $eng['logs'][$k] .
         '</td><td>' . $eng['interactions'][$k] . '</td></tr>';
 }
-$html .= '</table><h3>' . s($S('recent')) . '</h3><table border="1" cellpadding="3"><tr><th><b>' . s($S('student')) .
-    '</b></th><th><b>' . s($S('activity')) . '</b></th><th><b>' . s($S('completedon')) . '</b></th><th><b>' .
-    s($S('grade')) . '</b></th></tr>';
-foreach (array_slice($items, 0, 200) as $it) {
-    $html .= '<tr><td>' . s($it->student) . '</td><td>' . s($it->activity) . '</td><td>' . s(userdate($it->time, $datefmt)) .
-        '</td><td>' . ($it->grade === null ? '-' : format_float($it->grade, 1)) . '</td></tr>';
-}
-$html .= '</table>';
 
 $pdf = new pdf();
 $pdf->setPrintHeader(false);

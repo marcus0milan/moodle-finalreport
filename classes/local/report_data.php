@@ -23,7 +23,7 @@ require_once($GLOBALS['CFG']->libdir . '/completionlib.php');
 /**
  * All queries and calculations of the report. Everything is read live from the Moodle database.
  *
- * All indicators (KPIs, gauges, table) are cumulative: from the start of the course until now.
+ * All indicators (KPIs and gauges) are cumulative: from the start of the course until now.
  * Only the time-series charts use their own "last N months" window.
  *
  * Definitions:
@@ -479,70 +479,4 @@ class report_data {
         return $out;
     }
 
-    // ---------------------------------------------------------------- Table
-
-    private function completion_from_where(?int $from = null): array {
-        [$usql, $params] = $this->user_in('cmc.userid', 'tu');
-        $params += ['courseid' => $this->course->id, 'tto' => $this->to];
-        $sql = "FROM {course_modules_completion} cmc
-                JOIN {course_modules} cm ON cm.id = cmc.coursemoduleid
-                JOIN {modules} m ON m.id = cm.module
-                JOIN {user} u ON u.id = cmc.userid
-           LEFT JOIN {grade_items} gi ON gi.courseid = cm.course AND gi.itemtype = 'mod' AND gi.itemmodule = m.name
-                                      AND gi.iteminstance = cm.instance AND gi.itemnumber = 0
-           LEFT JOIN {grade_grades} gg ON gg.itemid = gi.id AND gg.userid = cmc.userid
-               WHERE cm.course = :courseid AND cm.deletioninprogress = 0
-                     AND cmc.completionstate IN (" . COMPLETION_COMPLETE . ", " . COMPLETION_COMPLETE_PASS . ")
-                     AND cmc.timemodified <= :tto AND $usql";
-        if ($from !== null) {
-            $sql .= ' AND cmc.timemodified >= :tfrom';
-            $params['tfrom'] = $from;
-        }
-        return [$sql, $params];
-    }
-
-    private function recent_completion_cutoff(): int {
-        return (new \DateTime('@' . $this->to))->setTimezone(\core_date::get_user_timezone_object())
-            ->modify('-3 months')->getTimestamp();
-    }
-
-    public function count_completions(): int {
-        global $DB;
-        [$sql, $params] = $this->completion_from_where($this->recent_completion_cutoff());
-        return (int)$DB->count_records_sql('SELECT COUNT(1) ' . $sql, $params);
-    }
-
-    /**
-    * Latest activity completions from the last three months. $limit = 0 returns all rows in that period.
-     * @return array of objects: student, email, activity, type, time, grade (0-10 or null)
-     */
-    public function recent_completions(int $offset = 0, int $limit = 0): array {
-        global $DB;
-        require_once($GLOBALS['CFG']->dirroot . '/course/lib.php');
-        [$sql, $params] = $this->completion_from_where($this->recent_completion_cutoff());
-        $rows = $DB->get_records_sql(
-            "SELECT cmc.id, cmc.timemodified, cm.id AS cmid, m.name AS modname, u.email,
-                    u.firstname, u.lastname, u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename,
-                    gg.finalgrade, gi.grademin, gi.grademax $sql
-           ORDER BY cmc.timemodified DESC, cmc.id DESC", $params, $offset, $limit);
-        $modinfo = get_fast_modinfo($this->course);
-        $format = course_get_format($this->course);
-        $out = [];
-        foreach ($rows as $r) {
-            $cm = $modinfo->cms[$r->cmid] ?? null;
-            $name = $cm ? $cm->name : '-';
-            if ($cm) {
-                $name = $format->get_section_name($cm->sectionnum) . ' · ' . $cm->name;
-            }
-            $out[] = (object)[
-                'student' => fullname($r),
-                'email' => $r->email,
-                'activity' => $name,
-                'type' => get_string('modulename', 'mod_' . $r->modname),
-                'time' => (int)$r->timemodified,
-                'grade' => self::norm10($r->finalgrade, $r->grademin, $r->grademax),
-            ];
-        }
-        return $out;
-    }
 }
