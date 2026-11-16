@@ -79,6 +79,6 @@ $string['value'] = 'Value';
 $string['details'] = 'Details';
 $string['confirmationactivitymissing'] = 'No Quiz or Feedback activity with ID number "confirmacao_matricula" was found in this course. Configure the confirmation activity before opening the report.';
 $string['confirmationactivityduplicate'] = 'More than one Quiz or Feedback activity uses ID number "confirmacao_matricula". Keep this ID number on exactly one activity per course.';
-$string['confirmationquizinvalid'] = 'The confirmation Quiz must have a passing grade greater than zero. Configure SIM as passing and NÃO as not passing.';
+$string['confirmationquizinvalid'] = 'The confirmation Quiz must contain exactly one question and have a passing grade greater than zero within its maximum grade. Configure SIM as passing and NÃO as not passing.';
 $string['confirmationfeedbackanonymous'] = 'The confirmation Feedback must be non-anonymous so responses can be matched to students.';
 $string['confirmationfeedbackinvalid'] = 'The confirmation Feedback must contain exactly one single-choice question with the options SIM and NÃO.';

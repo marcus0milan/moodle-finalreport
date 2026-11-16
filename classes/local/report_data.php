@@ -138,25 +138,32 @@ class report_data {
     private function get_quiz_confirmed_students(int $quizid): array {
         global $DB;
 
-        $gradepass = $DB->get_field_sql(
-            "SELECT gi.gradepass
-               FROM {grade_items} gi
-              WHERE gi.courseid = :courseid AND gi.itemtype = 'mod' AND gi.itemmodule = 'quiz'
-                    AND gi.iteminstance = :quizid AND gi.itemnumber = 0",
-            ['courseid' => $this->course->id, 'quizid' => $quizid]);
-        if ($gradepass === false || $gradepass === null || (float)$gradepass <= 0) {
+        $quizsettings = $DB->get_record_sql(
+            "SELECT q.grade, q.sumgrades, gi.gradepass
+               FROM {quiz} q
+               JOIN {grade_items} gi ON gi.courseid = q.course AND gi.itemtype = 'mod'
+                                    AND gi.itemmodule = 'quiz' AND gi.iteminstance = q.id
+                                    AND gi.itemnumber = 0
+              WHERE q.id = :quizid",
+            ['quizid' => $quizid]);
+        $questioncount = $DB->count_records('quiz_slots', ['quizid' => $quizid]);
+        if (!$quizsettings || $questioncount !== 1 || (float)$quizsettings->gradepass <= 0 ||
+                (float)$quizsettings->grade <= 0 ||
+                (float)$quizsettings->sumgrades <= 0 || (float)$quizsettings->gradepass > (float)$quizsettings->grade) {
             throw new \moodle_exception('confirmationquizinvalid', 'report_finalreport');
         }
 
         $rows = $DB->get_records_sql(
-            "SELECT DISTINCT qg.userid
-               FROM {quiz_grades} qg
-               JOIN {quiz} q ON q.id = qg.quiz
+            "SELECT DISTINCT qa.userid
+               FROM {quiz_attempts} qa
+               JOIN {quiz} q ON q.id = qa.quiz
                JOIN {grade_items} gi ON gi.courseid = q.course AND gi.itemtype = 'mod'
                                     AND gi.itemmodule = 'quiz' AND gi.iteminstance = q.id
                                     AND gi.itemnumber = 0
-              WHERE q.id = :quizid AND gi.gradepass > 0 AND qg.grade >= gi.gradepass",
-            ['quizid' => $quizid]);
+              WHERE q.id = :quizid AND qa.state = 'finished' AND qa.preview = 0 AND qa.timefinish > 0
+                    AND qa.timefinish <= :tto AND q.sumgrades > 0 AND gi.gradepass > 0
+                    AND (qa.sumgrades / q.sumgrades) * q.grade >= gi.gradepass",
+            ['quizid' => $quizid, 'tto' => $this->to]);
         $userids = [];
         foreach ($rows as $row) {
             $userids[(int)$row->userid] = (int)$row->userid;

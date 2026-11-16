@@ -79,6 +79,6 @@ $string['value'] = 'Valor';
 $string['details'] = 'Detalhes';
 $string['confirmationactivitymissing'] = 'Não foi encontrada uma atividade Quiz ou Feedback com Número ID "confirmacao_matricula" neste curso. Configure a atividade de confirmação antes de abrir o relatório.';
 $string['confirmationactivityduplicate'] = 'Mais de uma atividade Quiz ou Feedback usa o Número ID "confirmacao_matricula". Mantenha esse Número ID em apenas uma atividade por curso.';
-$string['confirmationquizinvalid'] = 'O Quiz de confirmação precisa ter nota de aprovação maior que zero. Configure SIM como aprovado e NÃO como não aprovado.';
+$string['confirmationquizinvalid'] = 'O Quiz de confirmação precisa ter exatamente uma pergunta, nota de aprovação maior que zero e nota máxima suficiente. Configure SIM como aprovado e NÃO como não aprovado.';
 $string['confirmationfeedbackanonymous'] = 'O Feedback de confirmação precisa ser não anônimo para que as respostas possam ser associadas aos estudantes.';
 $string['confirmationfeedbackinvalid'] = 'O Feedback de confirmação precisa ter exatamente uma pergunta de escolha única com as opções SIM e NÃO.';
