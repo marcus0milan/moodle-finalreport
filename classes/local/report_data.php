@@ -27,7 +27,8 @@ require_once($GLOBALS['CFG']->libdir . '/completionlib.php');
  * Only the time-series charts use their own "last N months" window.
  *
  * Definitions:
- *  - Students: users enrolled in the course holding a gradebook role ($CFG->gradebookroles).
+ *  - Students: enrolled users holding a gradebook role who confirmed their enrolment.
+ *    The confirmation activity uses the course-module ID number "confirmacao_matricula".
  *  - Active: student with at least one currently valid enrolment. Suspended = total - active (dropout).
  *  - Activities: course modules with completion tracking AND a numeric grade item.
  *  - Course completion: course_completions (when the course has criteria) or all tracked activities completed.
@@ -46,6 +47,8 @@ class report_data {
     private $userid;
     private $to;
     private $groupstudents = null;
+    private $coursestudents = null;
+    private $confirmedstudents = null;
 
     public function __construct(\stdClass $course, \context_course $context, int $groupid, int $userid, int $to) {
         $this->course = $course;
@@ -55,16 +58,16 @@ class report_data {
         $this->to = $to;
     }
 
-    /** Students of the selected group (ignores the single-student filter). */
-    public function get_group_students(): array {
+    /** Enrolled students of the selected group, before confirmation filtering. */
+    private function get_course_students(): array {
         global $DB, $CFG;
-        if ($this->groupstudents !== null) {
-            return $this->groupstudents;
+        if ($this->coursestudents !== null) {
+            return $this->coursestudents;
         }
-        $this->groupstudents = [];
+        $this->coursestudents = [];
         $roleids = array_filter(array_map('intval', explode(',', (string)($CFG->gradebookroles ?? ''))));
         if (!$roleids || $this->groupid < 0) {
-            return $this->groupstudents;
+            return $this->coursestudents;
         }
         [$rsql, $params] = $DB->get_in_or_equal($roleids, SQL_PARAMS_NAMED, 'role');
         $now = time();
@@ -85,14 +88,168 @@ class report_data {
                   $groupjoin
               ORDER BY u.lastname, u.firstname";
         foreach ($DB->get_records_sql($sql, $params) as $r) {
-            if (!isset($this->groupstudents[$r->id])) {
+            if (!isset($this->coursestudents[$r->id])) {
                 $student = clone $r;
                 unset($student->ueid);
                 $student->isactive = 0;
-                $this->groupstudents[$r->id] = $student;
+                $this->coursestudents[$r->id] = $student;
             }
             if ($r->isactive) {
-                $this->groupstudents[$r->id]->isactive = 1;
+                $this->coursestudents[$r->id]->isactive = 1;
+            }
+        }
+        return $this->coursestudents;
+    }
+
+    /**
+     * Gets distinct users who confirmed through the marked Quiz or Feedback activity.
+     *
+     * @return array user IDs keyed by ID
+     */
+    private function get_confirmed_students(): array {
+        global $DB;
+        if ($this->confirmedstudents !== null) {
+            return $this->confirmedstudents;
+        }
+
+        $this->confirmedstudents = [];
+        $activities = $DB->get_records_sql(
+            "SELECT cm.id, cm.instance, m.name AS modulename
+               FROM {course_modules} cm
+               JOIN {modules} m ON m.id = cm.module
+              WHERE cm.course = :courseid AND cm.idnumber = :idnumber
+                    AND cm.deletioninprogress = 0 AND m.name IN ('quiz', 'feedback')",
+            ['courseid' => $this->course->id, 'idnumber' => 'confirmacao_matricula']);
+        if (count($activities) !== 1) {
+            $key = $activities ? 'confirmationactivityduplicate' : 'confirmationactivitymissing';
+            throw new \moodle_exception($key, 'report_finalreport');
+        }
+
+        $activity = reset($activities);
+        if ($activity->modulename === 'quiz') {
+            $this->confirmedstudents = $this->get_quiz_confirmed_students((int)$activity->instance);
+        } else {
+            $this->confirmedstudents = $this->get_feedback_confirmed_students((int)$activity->instance);
+        }
+        return $this->confirmedstudents;
+    }
+
+    /** @return array user IDs keyed by ID */
+    private function get_quiz_confirmed_students(int $quizid): array {
+        global $DB;
+
+        $gradepass = $DB->get_field_sql(
+            "SELECT gi.gradepass
+               FROM {grade_items} gi
+              WHERE gi.courseid = :courseid AND gi.itemtype = 'mod' AND gi.itemmodule = 'quiz'
+                    AND gi.iteminstance = :quizid AND gi.itemnumber = 0",
+            ['courseid' => $this->course->id, 'quizid' => $quizid]);
+        if ($gradepass === false || $gradepass === null || (float)$gradepass <= 0) {
+            throw new \moodle_exception('confirmationquizinvalid', 'report_finalreport');
+        }
+
+        $rows = $DB->get_records_sql(
+            "SELECT DISTINCT qg.userid
+               FROM {quiz_grades} qg
+               JOIN {quiz} q ON q.id = qg.quiz
+               JOIN {grade_items} gi ON gi.courseid = q.course AND gi.itemtype = 'mod'
+                                    AND gi.itemmodule = 'quiz' AND gi.iteminstance = q.id
+                                    AND gi.itemnumber = 0
+              WHERE q.id = :quizid AND gi.gradepass > 0 AND qg.grade >= gi.gradepass",
+            ['quizid' => $quizid]);
+        $userids = [];
+        foreach ($rows as $row) {
+            $userids[(int)$row->userid] = (int)$row->userid;
+        }
+        return $userids;
+    }
+
+    /**
+     * Returns the one-based option index for SIM, or null unless the item is exactly SIM/NÃO.
+     */
+    private function feedback_confirmation_option(string $presentation): ?int {
+        $separator = strpos($presentation, '>>>>>');
+        if ($separator === false) {
+            return null;
+        }
+        $options = explode('<<<<<', substr($presentation, $separator + 5), 2)[0];
+        $options = preg_split('/[|\r\n]+/', $options);
+        $labels = [];
+        foreach ($options as $option) {
+            $option = trim($option);
+            if ($option === '') {
+                continue;
+            }
+            $parts = explode('####', $option, 2);
+            $label = count($parts) === 2 ? $parts[1] : $parts[0];
+            $label = html_entity_decode(strip_tags($label), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $label = \core_text::strtolower(trim($label));
+            $labels[] = str_replace('ã', 'a', $label);
+        }
+
+        if (count($labels) !== 2 || !in_array('sim', $labels, true) || !in_array('nao', $labels, true)) {
+            return null;
+        }
+        $yesindex = array_search('sim', $labels, true);
+        return $yesindex === false ? null : $yesindex + 1;
+    }
+
+    /** @return array user IDs keyed by ID */
+    private function get_feedback_confirmed_students(int $feedbackid): array {
+        global $DB;
+
+        $feedback = $DB->get_record('feedback', ['id' => $feedbackid], 'id, anonymous', MUST_EXIST);
+        if ((int)$feedback->anonymous !== 0) {
+            throw new \moodle_exception('confirmationfeedbackanonymous', 'report_finalreport');
+        }
+
+        $items = $DB->get_records('feedback_item', ['feedback' => $feedbackid],
+            'position ASC', 'id, typ, presentation');
+        $confirmationitem = null;
+        $yesindex = null;
+        foreach ($items as $item) {
+            if (!in_array($item->typ, ['multichoice', 'multichoicerated'], true)) {
+                continue;
+            }
+            $option = $this->feedback_confirmation_option((string)$item->presentation);
+            if ($option === null) {
+                continue;
+            }
+            if ($confirmationitem !== null) {
+                throw new \moodle_exception('confirmationfeedbackinvalid', 'report_finalreport');
+            }
+            $confirmationitem = (int)$item->id;
+            $yesindex = $option;
+        }
+        if ($confirmationitem === null) {
+            throw new \moodle_exception('confirmationfeedbackinvalid', 'report_finalreport');
+        }
+
+        $rows = $DB->get_records_sql(
+            "SELECT DISTINCT c.userid
+               FROM {feedback_completed} c
+               JOIN {feedback_value} v ON v.completed = c.id
+              WHERE c.feedback = :feedbackid AND c.userid > 0 AND c.anonymous_response = 0
+                    AND c.timemodified <= :tto AND v.item = :itemid AND v.value = :yesvalue",
+            ['feedbackid' => $feedbackid, 'tto' => $this->to, 'itemid' => $confirmationitem,
+                'yesvalue' => (string)$yesindex]);
+        $userids = [];
+        foreach ($rows as $row) {
+            $userids[(int)$row->userid] = (int)$row->userid;
+        }
+        return $userids;
+    }
+
+    /** Students of the selected group who confirmed their enrolment. */
+    public function get_group_students(): array {
+        if ($this->groupstudents !== null) {
+            return $this->groupstudents;
+        }
+        $this->groupstudents = [];
+        $confirmed = $this->get_confirmed_students();
+        foreach ($this->get_course_students() as $id => $student) {
+            if (isset($confirmed[$id])) {
+                $this->groupstudents[$id] = $student;
             }
         }
         return $this->groupstudents;
@@ -309,8 +466,8 @@ class report_data {
               WHERE v.item $itemsql AND c.timemodified <= :tto",
             $itemparams + ['tto' => $this->to]);
         $students = $this->get_students();
-        // Anonymous answers cannot be tied to a student, so they only count when no group/student filter is set.
-        $allowanon = (!$this->userid && $this->groupid == 0);
+        // Anonymous answers cannot be tied to the confirmed-student population.
+        $allowanon = false;
         $n = $prom = $detr = 0;
         foreach ($rows as $r) {
             $anonymous = ((int)$r->anonymous_response === 1) || (int)$r->userid === 0;

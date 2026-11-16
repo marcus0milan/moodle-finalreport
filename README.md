@@ -17,5 +17,14 @@ Esse plugin tem como objetivo implementar um painel para melhor visualização p
 
 Para acessar o paínel, ele fica dentro de um curso, no menu de Relatórios.
 
+## Confirmação de matrícula
+
+Os indicadores e gráficos por estudante consideram somente estudantes que confirmaram a matrícula com SIM. Em cada curso, identifique a atividade Quiz ou Feedback de confirmação pelo campo **Número ID**, usando exatamente `confirmacao_matricula`. Deve haver apenas uma atividade marcada por curso.
+
+- No Quiz, configure SIM como aprovado, NÃO como não aprovado e uma nota de aprovação maior que zero.
+- No Feedback, use uma atividade não anônima com exatamente uma pergunta de escolha única e as opções SIM e NÃO.
+
+Atividades não configuradas ou com configuração ambígua geram um erro explícito, para evitar que o relatório apresente contagens incompletas como se fossem válidas.
+
 ##
 
