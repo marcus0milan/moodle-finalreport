@@ -193,7 +193,6 @@ class page {
         return [
             'formaction' => (new \moodle_url('/report/finalreport/index.php'))->out(false),
             'title' => $this->str('pluginname'),
-            'subtitle' => $this->str('subtitle'),
             'pdfurl' => $s->url(['format' => 'pdf', 'sesskey' => sesskey()], '/report/finalreport/export.php')->out(false),
             'excelurl' => $s->url(['format' => 'xlsx', 'sesskey' => sesskey()], '/report/finalreport/export.php')->out(false),
             'updated' => $this->str('updatedat', userdate(time(), get_string('strftimedatetimeshort', 'langconfig'))),

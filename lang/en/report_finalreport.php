@@ -19,7 +19,6 @@ defined('MOODLE_INTERNAL') || die();
 $string['pluginname'] = 'Final Report';
 $string['finalreport:view'] = 'View the Final Report';
 $string['privacy:metadata'] = 'The Final Report does not store any personal data.';
-$string['subtitle'] = 'Follow learning. Turn data into decisions.';
 $string['downloadpdf'] = 'Download PDF report';
 $string['downloadexcel'] = 'Download Excel report';
 $string['updatedat'] = 'Updated on {$a}';
