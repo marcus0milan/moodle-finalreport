@@ -26,5 +26,5 @@ Os indicadores e gráficos por estudante consideram somente estudantes que confi
 
 Atividades não configuradas ou com configuração ambígua geram um erro explícito, para evitar que o relatório apresente contagens incompletas como se fossem válidas.
 
-##Em desenvolvimento . . 
+## Em desenvolvimento . . 
 
