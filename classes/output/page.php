@@ -193,8 +193,8 @@ class page {
         return [
             'formaction' => (new \moodle_url('/report/finalreport/index.php'))->out(false),
             'title' => $this->str('pluginname'),
-            'pdfurl' => $s->url(['format' => 'pdf', 'sesskey' => sesskey()], '/report/finalreport/export.php')->out(false),
-            'excelurl' => $s->url(['format' => 'xlsx', 'sesskey' => sesskey()], '/report/finalreport/export.php')->out(false),
+            'pdfurl' => $s->url(['sesskey' => sesskey()], '/report/finalreport/export_pdf.php')->out(false),
+            'excelurl' => $s->url(['sesskey' => sesskey()], '/report/finalreport/export_excel.php')->out(false),
             'updated' => $this->str('updatedat', userdate(time(), get_string('strftimedatetimeshort', 'langconfig'))),
             'courseselect' => $this->select('id', $this->str('course'), $courses, $s->course->id),
             'studentselect' => $this->select('userid', $this->str('allstudents'), $students, $s->userid),

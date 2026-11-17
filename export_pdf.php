@@ -1,0 +1,60 @@
+<?php
+// This file is part of Moodle - https://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle. If not, see <https://www.gnu.org/licenses/>.
+
+require_once(__DIR__ . '/../../config.php');
+require_once($CFG->libdir . '/pdflib.php');
+
+$id = required_param('id', PARAM_INT);
+$course = get_course($id);
+require_login($course);
+$context = context_course::instance($course->id);
+require_capability('report/finalreport:view', $context);
+require_sesskey();
+
+$state = new \report_finalreport\local\state($course, $context);
+$page = new \report_finalreport\output\page($state);
+$data = $state->data;
+$ind = $page->indicators();
+$eng = $data->engagement($state->chart_start($state->eperiod), $state->to, $state->egran);
+$S = function ($k) {
+    return get_string($k, 'report_finalreport');
+};
+$filename = clean_filename('overview_' . $course->shortname . '_' . date('Ymd'));
+$title = get_string('pluginname', 'report_finalreport') . ' - ' . format_string($course->fullname, true, ['context' => $context]);
+
+// PDF.
+$html = '<h2>' . s(strip_tags($title)) . '</h2>';
+$html .= '<table border="1" cellpadding="4"><tr><th><b>' . s($S('indicator')) . '</b></th><th><b>' . s($S('value')) .
+    '</b></th><th><b>' . s($S('details')) . '</b></th></tr>';
+foreach ($ind as $i) {
+    $html .= '<tr><td>' . s($i['label']) . '</td><td>' . s($i['value']) . '</td><td>' . s($i['note']) . '</td></tr>';
+}
+$html .= '</table><h3>' . s($S('engagement')) . '</h3><table border="1" cellpadding="3"><tr><th><b>' . s($S('period')) .
+    '</b></th><th><b>' . s($S('clicks')) . '</b></th><th><b>' . s($S('logs')) . '</b></th><th><b>' .
+    s($S('interactions')) . '</b></th></tr>';
+foreach ($eng['labels'] as $k => $label) {
+    $html .= '<tr><td>' . s($label) . '</td><td>' . $eng['clicks'][$k] . '</td><td>' . $eng['logs'][$k] .
+        '</td><td>' . $eng['interactions'][$k] . '</td></tr>';
+}
+
+$pdf = new pdf();
+$pdf->setPrintHeader(false);
+$pdf->setPrintFooter(false);
+$pdf->AddPage();
+$pdf->SetFont('helvetica', '', 9);
+$pdf->writeHTML($html);
+$pdf->Output($filename . '.pdf', 'D');
+exit;
