@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle. If not, see <https://www.gnu.org/licenses/>.
 
+require_once(__DIR__ . '/../../config.php');
+
 $format = required_param('format', PARAM_ALPHA);
 
 if ($format === 'xlsx') {
