@@ -176,6 +176,7 @@ class page {
         $eng = $data->engagement($s->chart_start($s->eperiod), $eend, $s->egran);
         $engchart = $this->line_chart($eng['labels'], [
             [$this->str('clicks'), $eng['clicks'], '#5b7bd5'],
+            [$this->str('interactions'), $eng['interactions'], '#4fa88a'],
         ]);
         $edelta = $this->delta_text($eng['clicks'], $s->egran);
 
