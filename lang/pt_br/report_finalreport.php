@@ -100,3 +100,4 @@ $string['pdf_logo_placeholder'] = 'LOGO DA';
 $string['pdf_logo_subtitle'] = 'INSTITUIÇÃO';
 $string['pdf_period'] = 'Período';
 $string['pdf_studentbase'] = 'Base de alunos';
+$string['pdf_engagement_desc'] = 'Cliques registrados e ações dos alunos ao longo do tempo';

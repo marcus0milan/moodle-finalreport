@@ -107,14 +107,14 @@ foreach ($kpis as $index => $kpi) {
     $text($x + 3, 68, $trimnote($kpi['note']), 5.2, '', [105, 118, 126]);
 }
 
-$drawgauge = function (float $x, array $gauge) use ($pdf, $drawcard, $text, $trimnote): void {
+$drawgauge = function (float $x, array $gauge) use ($pdf, $drawcard, $text): void {
     $w = (190 - 2 * 3) / 3;
     $y = 78;
-    $h = 56;
+    $h = 60;
     $drawcard($x, $y, $w, $h);
     $text($x + 3, $y + 4, $gauge['label'], 7.2, 'B');
     $cx = $x + $w / 2;
-    $cy = $y + 39;
+    $cy = $y + 36;
     $radius = 18;
     $colors = [[217, 107, 102], [224, 143, 98], [217, 185, 90], [155, 184, 106], [79, 168, 138]];
     $pdf->SetLineWidth(2.6);
@@ -140,8 +140,10 @@ $drawgauge = function (float $x, array $gauge) use ($pdf, $drawcard, $text, $tri
         $pdf->SetFillColor(43, 58, 66);
         $pdf->Rect($cx - 0.8, $cy - 0.8, 1.6, 1.6, 'F');
     }
-    $text($cx - 9, $y + 43, $gauge['value'] . ($gauge['suffix'] ? ' ' . $gauge['suffix'] : ''), 10, 'B');
-    $text($x + 3, $y + 50, $trimnote($gauge['note']), 5, '', [105, 118, 126]);
+    $text($cx - 9, $y + 41, $gauge['value'] . ($gauge['suffix'] ? ' ' . $gauge['suffix'] : ''), 10, 'B');
+    $pdf->writeHTMLCell($w - 6, 8, $x + 3, $y + 48,
+        '<div style="font-size:5pt;color:#69767e;text-align:center;">' . s($gauge['note']) . '</div>',
+        0, 0, false, true, 'C');
 };
 
 $gaugewidth = (190 - 2 * 3) / 3;
@@ -210,14 +212,13 @@ $drawchart = function (float $x, float $y, float $w, float $h, string $title, st
     $text($x + 4, $y + $h - 5, $footnote, 5.5, 'B', [65, 78, 86]);
 };
 
-$drawchart(10, 138, 190, 62, get_string('engagement', 'report_finalreport'),
-    get_string('engagement_desc', 'report_finalreport'), $engagement['labels'], [
+$drawchart(10, 142, 190, 60, get_string('engagement', 'report_finalreport'),
+    get_string('pdf_engagement_desc', 'report_finalreport'), $engagement['labels'], [
         [get_string('clicks', 'report_finalreport'), $engagement['clicks']],
         [get_string('interactions', 'report_finalreport'), $engagement['interactions']],
-        [get_string('logs', 'report_finalreport'), $engagement['logs']],
     ], get_string('clicksinperiod', 'report_finalreport', number_format(array_sum($engagement['clicks']), 0, ',', '.')));
 
-$drawchart(10, 204, 190, 62, get_string('completions', 'report_finalreport'),
+$drawchart(10, 208, 190, 60, get_string('completions', 'report_finalreport'),
     get_string('completions_desc', 'report_finalreport'), $completions['labels'], [
         [get_string('completionsseries', 'report_finalreport'), $completions['values']],
     ], get_string('completionsinperiod', 'report_finalreport', number_format(array_sum($completions['values']), 0, ',', '.')));
