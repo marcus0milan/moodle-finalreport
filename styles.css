@@ -38,7 +38,8 @@
 .rco-gauge svg { width: 100%; max-height: 190px; }
 .rco-gauge-value { font-size: 36px; font-weight: 700; fill: currentColor; }
 .rco-gauge-suffix, .rco-gauge-range { font-size: 11px; fill: var(--rco-muted); }
-.rco-marker { fill: #fff; stroke: #1f2937; stroke-width: 3; }
+.rco-needle { stroke: #1f2937; stroke-width: 4; stroke-linecap: round; }
+.rco-needle-pivot { fill: #1f2937; stroke: #fff; stroke-width: 1.5; }
 .rco-pos { color: #1f8a5f; }
 .rco-neg { color: #c0392b; }
 .rco-pill { background: #f1f3f5; border-radius: .25rem; padding: .1rem .5rem; font-size: .8rem; }

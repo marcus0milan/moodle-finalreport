@@ -17,13 +17,16 @@
 
 {{!
     @template report_finalreport/gauge
-    Context: label, value, suffix, min, max, note, segments[d,color], hasvalue, mx, my.
+    Context: label, value, suffix, min, max, note, segments[d,color], hasvalue, needle_x, needle_y.
 }}
 <div class="rco-card rco-gauge">
     <h3 class="rco-card-title">{{label}}</h3>
     <svg viewBox="0 0 240 150" role="img" aria-label="{{label}}: {{value}}">
         {{#segments}}<path d="{{d}}" stroke="{{color}}" stroke-width="18" fill="none"/>{{/segments}}
-        {{#hasvalue}}<circle cx="{{mx}}" cy="{{my}}" r="7" class="rco-marker"/>{{/hasvalue}}
+        {{#hasvalue}}
+        <line x1="120" y1="120" x2="{{needle_x}}" y2="{{needle_y}}" class="rco-needle"/>
+        <circle cx="120" cy="120" r="4" class="rco-needle-pivot"/>
+        {{/hasvalue}}
         <text x="120" y="120" text-anchor="middle" class="rco-gauge-value">{{value}}</text>
         {{#suffix}}<text x="120" y="140" text-anchor="middle" class="rco-gauge-suffix">{{suffix}}</text>{{/suffix}}
         <text x="30" y="146" text-anchor="middle" class="rco-gauge-range">{{min}}</text>

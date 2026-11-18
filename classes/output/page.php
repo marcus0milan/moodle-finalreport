@@ -110,9 +110,10 @@ class page {
         }
         $out = $i + ['segments' => $segments, 'hasvalue' => $i['fraction'] !== null, 'suffix' => $i['suffix'] ?? ''];
         if ($i['fraction'] !== null) {
-            [$mx, $my] = $pt($i['fraction'] * 180);
-            $out['mx'] = $f($mx);
-            $out['my'] = $f($my);
+            $angle = deg2rad($i['fraction'] * 180);
+            $needleradius = $r - 20;
+            $out['needle_x'] = $f($cx - $needleradius * cos($angle));
+            $out['needle_y'] = $f($cy - $needleradius * sin($angle));
         }
         return $out;
     }
