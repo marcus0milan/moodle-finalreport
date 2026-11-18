@@ -90,8 +90,8 @@ class page {
 
     private function gauge(array $i): array {
         $cx = 120;
-        $cy = 120;
-        $r = 90;
+        $cy = 94;
+        $r = 82;
         $colors = ['#d96b66', '#e08f62', '#d9b95a', '#9bb86a', '#4fa88a'];
         $f = function (float $v): string {
             return number_format($v, 2, '.', '');

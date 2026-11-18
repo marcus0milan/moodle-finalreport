@@ -18,8 +18,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'report_finalreport';
-$plugin->version = 2026111803;
+$plugin->version = 2026111804;
 $plugin->requires = 2024042200;
 $plugin->supported = [404, 406];
 $plugin->maturity = MATURITY_BETA;
-$plugin->release = '1.5.9';
+$plugin->release = '1.5.10';
